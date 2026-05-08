@@ -499,7 +499,13 @@ label:first-child{margin-top:0}
       <div class="card">
         <div class="card-title">🏆 Settle This Week's Skins &amp; CTP</div>
         <p style="font-size:13px;color:var(--text2);margin-bottom:8px">Use this if not all 9 groups submitted but you want to finalize skins and CTP payouts for the current week.</p>
-        <button class="btn btn-gold" onclick="adminSettleSkinsCTP()">Settle Skins &amp; CTP Now</button>
+        <button class="btn btn-gold" onclick="adminSettleSkinsCTP()">⚡ Settle Current Week</button>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <select id="settle-week-sel" style="flex:1">
+            <option value="">-- Settle a specific week --</option>
+          </select>
+          <button class="btn btn-secondary" onclick="settleSpecificWeek()" style="white-space:nowrap">Settle</button>
+        </div>
       </div>
 
       <div class="card">
@@ -1812,7 +1818,7 @@ function showTab(t){
   if(t==='history')renderHistory();
   if(t==='ctp')renderCTP();
   if(t==='skins')renderSkins();
-  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();}
+  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();initSettleWeekSel();}
   window.scrollTo(0,0);
 }
 function hideBnav(){document.getElementById('bnav').style.display='none';}
@@ -2161,7 +2167,10 @@ function saveNewPassword(){
 function settleSkinsManual(){
   const db=getDB();const yr=getYear(db);
   const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  // Get side from actual submitted rounds for this week (more reliable than calculated)
+  const thisWkRounds=yr.weeks.filter(w=>w.week===wk);
+  const side=thisWkRounds.length>0?thisWkRounds[0].side:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
+  if(!thisWkRounds.length){showToast('No rounds submitted for Week '+wk+' yet');return;}
   calcLeagueWideSkinsCTP(db,yr,wk,side);
   saveDB(db);
   renderHome();
@@ -2170,7 +2179,7 @@ function settleSkinsManual(){
   renderAdminSkinsLb();
   renderAdminCtpLb();
   renderAdminMoneyLb();
-  showToast('Skins & CTP settled ✓');
+  showToast('Week '+wk+' skins & CTP settled ✓ ('+thisWkRounds.length+' groups)');
 }
 
 // ── PAST WEEK SCORE ENTRY ─────────────────────────────────────
@@ -2203,6 +2212,34 @@ function getPastPlayerVal(n){
 function isPastSub(n){
   const cb=document.getElementById('past-p'+n+'-sub');
   return cb?cb.checked:false;
+}
+
+function initSettleWeekSel(){
+  const db=getDB();const yr=getYear(db);
+  const sel=document.getElementById('settle-week-sel');
+  if(!sel)return;
+  const weeks=[...new Set(yr.weeks.map(w=>w.week))].sort((a,b)=>b-a);
+  sel.innerHTML='<option value="">-- Settle a specific week --</option>'+
+    weeks.map(w=>{
+      const rounds=yr.weeks.filter(r=>r.week===w);
+      const settled=rounds.some(r=>r.skinsSettled);
+      return '<option value="'+w+'">Week '+w+' ('+rounds.length+' groups'+(settled?' · settled':'')+')</option>';
+    }).join('');
+}
+
+function settleSpecificWeek(){
+  const db=getDB();const yr=getYear(db);
+  const sel=document.getElementById('settle-week-sel');
+  if(!sel||!sel.value){showToast('Please select a week');return;}
+  const wk=parseInt(sel.value);
+  const rounds=yr.weeks.filter(w=>w.week===wk);
+  if(!rounds.length){showToast('No rounds for Week '+wk);return;}
+  const side=rounds[0].side;
+  calcLeagueWideSkinsCTP(db,yr,wk,side);
+  saveDB(db);
+  renderSkins();renderCTP();renderAdminSkinsLb();renderAdminCtpLb();renderAdminMoneyLb();
+  initSettleWeekSel(); // refresh dropdown to show settled status
+  showToast('Week '+wk+' settled ✓ ('+rounds.length+' groups)');
 }
 
 function initPastWeekEntry(){
