@@ -1915,6 +1915,48 @@ function resetCurrentYear(){
     saveDB(db);location.reload();
   });
 }
+function addPlayer(){
+  const inp=document.getElementById('new-player-name');
+  if(!inp||!inp.value.trim())return;
+  const name=inp.value.trim();
+  const db=getDB();
+  if(db.players.includes(name)){showToast('Player already exists');return;}
+  db.players.push(name);db.players.sort();saveDB(db);inp.value='';
+  renderPlayers();showToast(name+' added ✓');
+}
+
+function addNewYear(){
+  const sel=document.getElementById('adm-year');if(!sel)return;
+  const yr=parseInt(sel.value);
+  if(isNaN(yr)||yr<2020||yr>2040){showToast('Invalid year');return;}
+  const db=getDB();db.activeYear=String(yr);saveDB(db);
+  location.reload();
+}
+
+function adminSettleSkinsCTP(){
+  settleSkinsManual();
+}
+
+function changePassword(){
+  const el=document.getElementById('change-pw-block');
+  if(el)el.style.display=el.style.display==='none'?'block':'none';
+}
+
+function closeLock(){
+  lockAdmin();
+  showTab('leaderboard');
+}
+
+function tryOpenAdmin(){
+  // If already unlocked just open the tab, otherwise show lock screen
+  const adminUnlocked=localStorage.getItem('adminUnlocked')==='true';
+  if(adminUnlocked){
+    showTab('admin');
+  } else {
+    showTab('admin'); // shows admin tab which has the lock screen
+  }
+}
+
 function submitLock(){
   const pw=document.getElementById('lock-input');if(!pw)return;
   const db=getDB();
