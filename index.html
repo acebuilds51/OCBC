@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.19</title>
+<title>OCBC Golf League v1.20</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -211,7 +211,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.19</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.20</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.19</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.20</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -237,8 +237,8 @@ label:first-child{margin-top:0}
       <span style="font-size:13px;color:var(--text2)">Course side this week:</span>
       <strong id="h-side" style="font-size:14px;color:var(--navy)">Front 9</strong>
     </div>
-    <button class="btn btn-green" onclick="goTo('s-setup')" style="padding:11px;font-size:15px">▶ Enter Foursome Scores</button>
-    <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('leaderboard')">📊 Leaderboard &amp; Averages</button>
+    <button class="btn btn-green" onclick="goToScoring()" style="padding:11px;font-size:15px">▶ Enter Foursome Scores</button>
+    <button class:10px;font-size:14px" onclick="showTab('leaderboard')">📊 Leaderboard &amp; Averages</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('history')">📅 Season History</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('ctp')">🎯 CTP Leaderboard</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('skins')">💰 Skins Leaderboard</button>
@@ -307,7 +307,10 @@ label:first-child{margin-top:0}
         <h1 id="sc-hole-hdr">Hole 1 · Par 4</h1>
         <p id="sc-sub"></p>
       </div>
-      <div id="sc-teams" style="font-size:9px;text-align:right;line-height:1.3;flex-shrink:0;max-width:80px"></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        <button onclick="showLivePeek()" style="background:var(--navy-l);border:1px solid var(--border);border-radius:20px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--navy);font-weight:600">📊 Live</button>
+        <div id="sc-teams" style="font-size:9px;text-align:right;line-height:1.3;max-width:80px"></div>
+      </div>
     </div>
   </header>
   <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 15px;background:var(--white);border-bottom:1px solid var(--border)">
@@ -558,6 +561,22 @@ label:first-child{margin-top:0}
       </div>
 
       <div class="card">
+        <div class="card-title">✏️ Correct Submitted Scores</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Select a submitted round to edit scores for any hole.</p>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;color:var(--text2)">Select Round</label>
+          <select id="edit-round-sel" style="width:100%;margin-top:3px" onchange="loadEditRound()">
+            <option value="">-- Select a submitted round --</option>
+          </select>
+        </div>
+        <div id="edit-round-block" style="display:none">
+          <div id="edit-round-grid" style="overflow-x:auto;margin-bottom:10px"></div>
+          <button class="btn btn-navy" style="width:100%" onclick="saveEditedRound()">💾 Save Corrected Scores</button>
+          <div id="edit-round-status" style="margin-top:8px;font-size:12px;color:var(--green-d)"></div>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-title">💰 Season Money Leaderboard</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Visible to commissioner only.</p>
         <div id="admin-money-lb"></div>
@@ -711,6 +730,24 @@ function isRainoutWeek(yr){
 
 // ── STATE ────────────────────────────────────────────────────
 let ST={players:[],holeIdx:0,scores:[],ctpWinners:{},teeTime:1,presses:[],awins:0,bwins:0};
+
+function saveSTProgress(){
+  try{localStorage.setItem('ocbcgl4_st',JSON.stringify(ST));}catch(e){}
+}
+function loadSTProgress(){
+  try{
+    const saved=localStorage.getItem('ocbcgl4_st');
+    if(!saved)return false;
+    const s=JSON.parse(saved);
+    // Only restore if it was mid-round (has players and scores)
+    if(!s.players||!s.players.length||!s.scores||!s.scores.length)return false;
+    Object.assign(ST,s);
+    return true;
+  }catch(e){return false;}
+}
+function clearSTProgress(){
+  try{localStorage.removeItem('ocbcgl4_st');}catch(e){}
+}
 let lbMode='avg';
 
 // ── INIT ─────────────────────────────────────────────────────
@@ -1052,7 +1089,7 @@ function renderScoringHole(){
     <p style="text-align:center;font-size:11px;color:var(--text2);margin-top:7px">Tap − / + to adjust scores</p>`;
 }
 
-function adj(i,d){const sc=ST.scores[ST.holeIdx];sc['p'+i]=Math.max(1,sc['p'+i]+d);document.getElementById('sn'+i).textContent=sc['p'+i];}
+function adj(i,d){const sc=ST.scores[ST.holeIdx];sc['p'+i]=Math.max(1,sc['p'+i]+d);document.getElementById('sn'+i).textContent=sc['p'+i];saveLiveProgress();saveSTProgress();}
 function callPress(team){
   const db=getDB();const yr=getYear(db);
   const hole=HOLES[yr.currentSide][ST.holeIdx];
@@ -1088,7 +1125,7 @@ function nextHole(){
       return;
     }
   }
-  saveCtp();resolveHole();ST.holeIdx++;renderScoringHole();saveLiveProgress();
+  saveCtp();resolveHole();ST.holeIdx++;renderScoringHole();saveLiveProgress();saveSTProgress();
 }
 function prevHole(){
   const sc=ST.scores[ST.holeIdx-1];
@@ -1202,6 +1239,48 @@ async function saveLiveProgress(){
   try{
     await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveLive',data:liveData})});
   }catch(e){}
+}
+
+async function showLivePeek(){
+  saveSTProgress(); // save progress before peeking
+  const overlay=document.getElementById('live-peek-overlay');
+  if(overlay){
+    overlay.style.display='block';
+    document.getElementById('live-peek-content').innerHTML='<div style="text-align:center;padding:20px;color:var(--text2)">Loading live scores...</div>';
+    fetchLivePeek();
+  }
+}
+function hideLivePeek(){
+  const overlay=document.getElementById('live-peek-overlay');
+  if(overlay)overlay.style.display='none';
+}
+async function fetchLivePeek(){
+  const db=getDB();
+  if(!db.sheetUrl){
+    document.getElementById('live-peek-content').innerHTML='<div style="color:var(--text2);text-align:center;padding:20px">No sheet connected</div>';
+    return;
+  }
+  try{
+    const db2=getDB();const yr=getYear(db2);
+    const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+    const r=await fetch(db.sheetUrl+'?action=getLive&year='+db.activeYear+'&week='+wk);
+    const d=await r.json();
+    if(!d.ok||!d.groups||!d.groups.length){
+      document.getElementById('live-peek-content').innerHTML='<div style="color:var(--text2);text-align:center;padding:20px">No live data yet</div>';
+      return;
+    }
+    // Simple summary view
+    const rows=d.groups.map(grp=>{
+      const names=grp.players.map(p=>p?fname(p.name):'').filter(Boolean).join(' / ');
+      const status=grp.status==='complete'?'✅ Done':'🟢 Hole '+(grp.holeIdx+1);
+      return'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'+
+        '<div><div style="font-weight:600;font-size:13px">T'+grp.teeTime+'</div><div style="font-size:11px;color:var(--text2)">'+names+'</div></div>'+
+        '<div style="font-size:12px;color:var(--text2)">'+status+'</div></div>';
+    }).join('');
+    document.getElementById('live-peek-content').innerHTML=rows||'<div style="color:var(--text2);text-align:center;padding:20px">No groups yet</div>';
+  }catch(e){
+    document.getElementById('live-peek-content').innerHTML='<div style="color:var(--red);text-align:center;padding:20px">Could not load live data</div>';
+  }
 }
 
 async function fetchLiveData(){
@@ -1626,6 +1705,35 @@ function goTo(id){
   if(id==='s-setup')resetSetupForm();
   window.scrollTo(0,0);
 }
+
+function goToScoring(){
+  // Check for saved in-progress round
+  const saved=localStorage.getItem('ocbcgl4_st');
+  if(saved){
+    try{
+      const s=JSON.parse(saved);
+      if(s.players&&s.players.length&&s.scores&&s.scores.length&&s.holeIdx>0){
+        doConfirm(
+          'Resume In-Progress Round?',
+          'You have an unfinished round in progress (Tee '+s.teeTime+', Hole '+(s.holeIdx+1)+'). Resume it?',
+          ()=>{loadSTProgress();goTo('s-scoring');renderScoringHole();},
+        );
+        // Add a cancel option that starts fresh
+        const yesBtn=document.getElementById('c-yes');
+        if(yesBtn){
+          const noBtn=yesBtn.cloneNode(true);
+          noBtn.textContent='Start Fresh';
+          noBtn.style.background='var(--gray)';
+          noBtn.style.color='var(--text)';
+          noBtn.onclick=()=>{closeConfirm();clearSTProgress();goTo('s-setup');};
+          yesBtn.parentNode.insertBefore(noBtn,yesBtn.nextSibling);
+        }
+        return;
+      }
+    }catch(e){}
+  }
+  goTo('s-setup');
+}
 // ── TAB / SCREEN NAVIGATION ──────────────────────────────────
 function showTab(t){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -1644,7 +1752,7 @@ function showTab(t){
   if(t==='history')renderHistory();
   if(t==='ctp')renderCTP();
   if(t==='skins')renderSkins();
-  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();}
+  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();}
   window.scrollTo(0,0);
 }
 function hideBnav(){document.getElementById('bnav').style.display='none';}
@@ -1779,6 +1887,7 @@ async function saveRound(wd){
   if(!yr.weeks)yr.weeks=[];
   yr.weeks.push(wd);saveDB(db);
   ST._pastMode=false;ST._pastWeek=null;ST._pastSide=null;ST._pastTeeTime=null;
+  clearSTProgress();
   if(!db.sheetUrl){showToast('Saved locally (no sheet connected)');return;}
   setSyncing('Saving to sheet...');
   try{
@@ -2214,6 +2323,123 @@ function renderAdminSkinsLb(){
     var n=e[0],d=e[1];
     return'<div class="lb-row"><div class="lb-rank'+(i<3?' top':'')+'">'+(i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1)+'</div><div class="lb-name">'+n+'</div><div class="lb-stats"><div style="color:var(--green-d)">'+d.count+' skin'+(d.count!==1?'s':'')+' · +$'+d.payout.toFixed(2)+'</div><div style="font-size:10px;color:var(--text2)">'+d.entries.join(' · ')+'</div></div></div>';
   }).join('')+'</div>';
+}
+</script>
+<!-- LIVE PEEK PANEL -->
+<div id="live-peek-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:1000;overflow-y:auto" onclick="if(event.target===this)hideLivePeek()">
+  <div style="background:var(--white);margin:50px 12px 20px;border-radius:12px;overflow:hidden;max-width:520px;margin-left:auto;margin-right:auto">
+    <div style="background:var(--navy);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:700;font-size:15px">📊 Live Scores</div>
+        <div style="font-size:11px;opacity:.7">Tap outside or Close to resume your round</div>
+      </div>
+      <button onclick="hideLivePeek()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:20px;padding:6px 14px;cursor:pointer;font-size:13px">Close</button>
+    </div>
+    <div id="live-peek-content" style="padding:12px"></div>
+  </div>
+</div>
+
+<!-- SAVE ST progress on adj -->
+
+<script>
+// ── EDIT SUBMITTED SCORES ─────────────────────────────────────
+function initEditRound(){
+  const db=getDB();const yr=getYear(db);
+  const sel=document.getElementById('edit-round-sel');
+  if(!sel)return;
+  const rounds=[...yr.weeks].sort((a,b)=>b.week-a.week||b.teeTime-a.teeTime);
+  sel.innerHTML='<option value="">-- Select a submitted round --</option>'+
+    rounds.map((wd,i)=>{
+      const names=wd.players.map(p=>fname(p.name)).join('/');
+      return '<option value="'+i+'">Wk'+wd.week+' T'+wd.teeTime+' — '+names+'</option>';
+    }).join('');
+  document.getElementById('edit-round-block').style.display='none';
+  sel._rounds=rounds;
+}
+
+function loadEditRound(){
+  const sel=document.getElementById('edit-round-sel');
+  const block=document.getElementById('edit-round-block');
+  const grid=document.getElementById('edit-round-grid');
+  if(!sel||!block||!grid)return;
+  const idx=sel.value;
+  if(idx===''){block.style.display='none';return;}
+  const wd=sel._rounds[parseInt(idx)];
+  if(!wd){block.style.display='none';return;}
+  block.style.display='block';
+  document.getElementById('edit-round-status').textContent='';
+  const HFRONT=[{n:1,p:4},{n:2,p:3},{n:3,p:5},{n:4,p:4},{n:5,p:3},{n:6,p:4},{n:7,p:4},{n:8,p:4},{n:9,p:4}];
+  const HBACK=[{n:10,p:4},{n:11,p:4},{n:12,p:3},{n:13,p:5},{n:14,p:3},{n:15,p:4},{n:16,p:3},{n:17,p:5},{n:18,p:4}];
+  const holes=wd.side==='back'?HBACK:HFRONT;
+  const hdrRow='<tr style="background:var(--navy-l)"><th style="text-align:left;padding:4px 6px;font-size:11px;color:var(--navy)">Player</th>'+
+    holes.map(h=>'<th style="text-align:center;padding:4px 3px;font-size:10px;color:var(--navy)">H'+h.n+'<br><span style="font-weight:400;color:var(--text2)">p'+h.p+'</span></th>').join('')+
+    '<th style="text-align:center;padding:4px;font-size:10px;color:var(--navy)">Tot</th></tr>';
+  const playerRows=wd.players.map((pl,pi)=>{
+    const cells=holes.map((h,hi)=>{
+      const score=wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+pi]:h.p;
+      if(score>=99)return '<td style="text-align:center;padding:2px"><span style="color:var(--border)">—</span></td>';
+      return '<td style="text-align:center;padding:2px"><input type="number" id="edit-p'+pi+'-h'+hi+'" value="'+score+'" min="1" max="15" style="width:36px;text-align:center;padding:2px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="updateEditTot('+pi+','+holes.length+')"></td>';
+    }).join('');
+    const tot=holes.reduce((s,_,hi)=>{
+      const v=wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+pi]:0;
+      return v<99?s+v:s;
+    },0);
+    return '<tr><td style="padding:4px 6px;font-size:12px;font-weight:500;white-space:nowrap">'+pl.name+(pl.isSub?'*':'')+'</td>'+cells+'<td id="edit-tot-p'+pi+'" style="text-align:center;padding:4px;font-size:12px;font-weight:700">'+tot+'</td></tr>';
+  }).join('');
+  grid.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:11px">'+hdrRow+playerRows+'</table>';
+}
+
+function updateEditTot(pi,numHoles){
+  let tot=0;
+  for(let hi=0;hi<numHoles;hi++){
+    const el=document.getElementById('edit-p'+pi+'-h'+hi);
+    if(el){const v=parseInt(el.value)||0;if(v>0&&v<99)tot+=v;}
+  }
+  const totEl=document.getElementById('edit-tot-p'+pi);
+  if(totEl)totEl.textContent=tot;
+}
+
+async function saveEditedRound(){
+  const sel=document.getElementById('edit-round-sel');
+  const statusEl=document.getElementById('edit-round-status');
+  if(!sel||sel.value==='')return;
+  const db=getDB();const yr=getYear(db);
+  const idx=parseInt(sel.value);
+  const wd=sel._rounds[idx];
+  if(!wd){showToast('Round not found');return;}
+  const HFRONT=[{n:1,p:4},{n:2,p:3},{n:3,p:5},{n:4,p:4},{n:5,p:3},{n:6,p:4},{n:7,p:4},{n:8,p:4},{n:9,p:4}];
+  const HBACK=[{n:10,p:4},{n:11,p:4},{n:12,p:3},{n:13,p:5},{n:14,p:3},{n:15,p:4},{n:16,p:3},{n:17,p:5},{n:18,p:4}];
+  const holes=wd.side==='back'?HBACK:HFRONT;
+  wd.players.forEach((pl,pi)=>{
+    holes.forEach((_,hi)=>{
+      const el=document.getElementById('edit-p'+pi+'-h'+hi);
+      if(el){
+        const v=parseInt(el.value);
+        if(!isNaN(v)&&v>0){
+          if(!wd.scores[hi])wd.scores[hi]={};
+          wd.scores[hi]['p'+pi]=v;
+        }
+      }
+    });
+  });
+  const wkIdx=yr.weeks.findIndex(w=>w.week===wd.week&&w.teeTime===wd.teeTime&&w.side===wd.side);
+  if(wkIdx>=0){
+    yr.weeks[wkIdx]=wd;
+    saveDB(db);
+    if(statusEl)statusEl.textContent='✓ Scores updated locally';
+    if(db.sheetUrl){
+      try{
+        const r=await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveRound',year:db.activeYear,data:wd})});
+        const d=await r.json();
+        if(d.ok){if(statusEl)statusEl.textContent='✓ Scores saved to sheet';}
+        else{if(statusEl)statusEl.textContent='Saved locally — sheet error';}
+      }catch(e){if(statusEl)statusEl.textContent='Saved locally — sheet unreachable';}
+    }
+    showToast('Scores corrected ✓');
+    renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();
+  } else {
+    showToast('Could not find round to update');
+  }
 }
 </script>
 </body>
