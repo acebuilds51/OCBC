@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.10</title>
+<title>OCBC Golf League v1.12</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.10</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.12</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -275,19 +275,19 @@ label:first-child{margin-top:0}
       <select id="p1" onchange="chkSelects()"><option value="">-- Select --</option></select>
       <div style="margin-top:7px"><label style="display:flex;align-items:center;gap:7px;margin:0;font-size:13px"><input type="checkbox" id="p1-sub" onchange="toggleSub(1)" style="width:17px;height:17px"> Sub / Guest?</label>
       <input type="text" id="p1-sn" placeholder="Sub name" style="display:none;margin-top:5px"></div>
-      <label style="margin-top:10px">Player 2 (Partner)</label>
-      <select id="p2" onchange="chkSelects()"><option value="">-- Select --</option></select>
+      <label style="margin-top:10px">Player 2 (Partner) <span style="font-weight:400;color:var(--text2)">— optional</span></label>
+      <select id="p2" onchange="chkSelects()"><option value="">-- Leave blank if not playing --</option></select>
       <div style="margin-top:7px"><label style="display:flex;align-items:center;gap:7px;margin:0;font-size:13px"><input type="checkbox" id="p2-sub" onchange="toggleSub(2)" style="width:17px;height:17px"> Sub / Guest?</label>
       <input type="text" id="p2-sn" placeholder="Sub name" style="display:none;margin-top:5px"></div>
     </div>
     <div class="team-box tb">
       <div class="tlabel b">Opponents (Team B)</div>
-      <label>Player 3</label>
-      <select id="p3" onchange="chkSelects()"><option value="">-- Select --</option></select>
+      <label>Player 3 <span style="font-weight:400;color:var(--text2)">— optional</span></label>
+      <select id="p3" onchange="chkSelects()"><option value="">-- Leave blank if not playing --</option></select>
       <div style="margin-top:7px"><label style="display:flex;align-items:center;gap:7px;margin:0;font-size:13px"><input type="checkbox" id="p3-sub" onchange="toggleSub(3)" style="width:17px;height:17px"> Sub / Guest?</label>
       <input type="text" id="p3-sn" placeholder="Sub name" style="display:none;margin-top:5px"></div>
-      <label style="margin-top:10px">Player 4</label>
-      <select id="p4" onchange="chkSelects()"><option value="">-- Select --</option></select>
+      <label style="margin-top:10px">Player 4 <span style="font-weight:400;color:var(--text2)">— optional</span></label>
+      <select id="p4" onchange="chkSelects()"><option value="">-- Leave blank if not playing --</option></select>
       <div style="margin-top:7px"><label style="display:flex;align-items:center;gap:7px;margin:0;font-size:13px"><input type="checkbox" id="p4-sub" onchange="toggleSub(4)" style="width:17px;height:17px"> Sub / Guest?</label>
       <input type="text" id="p4-sn" placeholder="Sub name" style="display:none;margin-top:5px"></div>
     </div>
@@ -844,8 +844,9 @@ function getPVal(n){
 function chkSelects(){
   const tt=document.getElementById('tee-time');
   const ttVal=tt?tt.value:'';
-  const vals=[1,2,3,4].map(getPVal);
-  document.getElementById('btn-go').disabled=!(ttVal&&vals.every(v=>v)&&new Set(vals).size===4);
+  const vals=[1,2,3,4].map(getPVal).filter(v=>v);
+  const unique=new Set(vals).size===vals.length;
+  document.getElementById('btn-go').disabled=!(ttVal&&vals.length>=1&&unique);
 }
 
 // ── START SCORING ────────────────────────────────────────────
@@ -855,13 +856,19 @@ function startScoring(){
   ST.players=[1,2,3,4].map(n=>{
     const isSub=document.getElementById(`p${n}-sub`)?.checked;
     const name=getPVal(n);
+    if(!name) return null;
     if(isSub&&name&&!db.players.includes(name)&&!db.subs.includes(name)){db.subs.push(name);saveDB(db);}
     return{name,isSub:isSub||db.subs.includes(name)};
-  });
+  }).filter(p=>p!==null);
   const currentSide=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
   const holes=HOLES[currentSide];
   ST.holeIdx=0;ST.awins=0;ST.bwins=0;
-  ST.scores=holes.map(h=>({p0:h.p,p1:h.p,p2:h.p,p3:h.p}));
+  // Init scores only for actual players, others ignored
+  ST.scores=holes.map(h=>{
+    const sc={};
+    for(let i=0;i<4;i++) sc['p'+i]=h.p;
+    return sc;
+  });
   ST.ctpWinners={};ST.presses=[];
   renderScoringHole();goTo('s-scoring');
 }
@@ -906,6 +913,8 @@ function renderScoringHole(){
         <button class="sbtn" onclick="adj(${i},1)">+</button>
       </div>
     </div>`).join('');
+  // Fill unused player slots with 0 so calcs work
+  for(let i=ST.players.length;i<4;i++) sc['p'+i]=99; // 99 = not playing, excluded from best ball/skins
 
   let ctpHtml='';
   if(isPar3){
@@ -1030,18 +1039,29 @@ function calcResults(){
 
   ST.presses.forEach(pr=>{if(!pr.closed){pr.closed=true;pr.winner=pr.awins>pr.bwins?'A':pr.bwins>pr.awins?'B':null;}});
 
+  // Best ball — only count real players (not 99 placeholder)
+  const numPlayers=ST.players.length;
   const hres=holes.map((hole,i)=>{
     const sc=ST.scores[i];
-    const ba=Math.min(sc.p0,sc.p1),bb=Math.min(sc.p2,sc.p3);
-    let w=null;if(ba<bb)w='A';else if(bb<ba)w='B';
+    const aScores=[sc.p0,numPlayers>1?sc.p1:99].filter(s=>s<99);
+    const bScores=[numPlayers>2?sc.p2:99,numPlayers>3?sc.p3:99].filter(s=>s<99);
+    const ba=aScores.length?Math.min(...aScores):99;
+    const bb=bScores.length?Math.min(...bScores):99;
+    let w=null;
+    if(ba<99&&bb<99){if(ba<bb)w='A';else if(bb<ba)w='B';}
+    else if(ba<99&&bb===99)w='A'; // Team A exists, Team B doesn't
     return{hole,sc,ba,bb,w};
   });
 
   // Best ball + presses pay immediately per foursome
   const money={};names.forEach(n=>money[n]=0);
-  const mw=ST.awins>ST.bwins?'A':ST.bwins>ST.awins?'B':null;
-  if(mw==='A'){money[names[0]]+=5;money[names[1]]+=5;money[names[2]]-=5;money[names[3]]-=5;}
-  else if(mw==='B'){money[names[2]]+=5;money[names[3]]+=5;money[names[0]]-=5;money[names[1]]-=5;}
+  const hasTeamA=numPlayers>=1;
+  const hasTeamB=numPlayers>=3;
+  const mw=hasTeamA&&hasTeamB?(ST.awins>ST.bwins?'A':ST.bwins>ST.awins?'B':null):null;
+  if(mw==='A'&&numPlayers>=4){money[names[0]]+=5;money[names[1]]+=5;money[names[2]]-=5;money[names[3]]-=5;}
+  else if(mw==='A'&&numPlayers===3){money[names[0]]+=5;money[names[1]]+=5;money[names[2]]-=5;}
+  else if(mw==='B'&&numPlayers>=4){money[names[2]]+=5;money[names[3]]+=5;money[names[0]]-=5;money[names[1]]-=5;}
+  else if(mw==='B'&&numPlayers===3){money[names[2]]+=5;money[names[0]]-=5;money[names[1]]-=5;}
   ST.presses.forEach(pr=>{
     if(pr.winner==='A'){money[names[0]]+=10;money[names[1]]+=10;money[names[2]]-=10;money[names[3]]-=10;}
     else if(pr.winner==='B'){money[names[2]]+=10;money[names[3]]+=10;money[names[0]]-=10;money[names[1]]-=10;}
@@ -1310,7 +1330,9 @@ function calcLeagueWideSkinsCTP(db,yr,wk,side){
   weekRounds.forEach(wd=>{
     wd.players.forEach((pl,i)=>{
       wd.scores.forEach((sc,hi)=>{
-        holeScores[holes[hi].n].push({name:pl.name,score:sc['p'+i]||0});
+        const score=sc['p'+i]||0;
+        if(score<99) // exclude placeholder scores for missing players
+          holeScores[holes[hi].n].push({name:pl.name,score:score});
       });
     });
   });
@@ -1557,22 +1579,74 @@ function renderHistory(){
   const db=getDB();const yr=getYear(db);
   document.getElementById('hist-year-pill').textContent=db.activeYear;
   if(!yr.weeks.length){document.getElementById('hist-list').innerHTML=`<div class="empty-state"><div style="font-size:32px">📅</div><p>No rounds yet.</p></div>`;return;}
-  const html=yr.weeks.slice().reverse().map(wd=>{
+  const holes_ref={
+    front:[{n:1,p:4},{n:2,p:3},{n:3,p:5},{n:4,p:4},{n:5,p:3},{n:6,p:4},{n:7,p:4},{n:8,p:4},{n:9,p:4}],
+    back: [{n:10,p:4},{n:11,p:4},{n:12,p:3},{n:13,p:5},{n:14,p:3},{n:15,p:4},{n:16,p:3},{n:17,p:5},{n:18,p:4}]
+  };
+  const html=yr.weeks.slice().reverse().map((wd,idx)=>{
     const wl=wd.matchWinner==='A'?`${fname(wd.players[0].name)}/${fname(wd.players[1].name)} won`
             :wd.matchWinner==='B'?`${fname(wd.players[2].name)}/${fname(wd.players[3].name)} won`:'Tied';
     const sc=Object.keys(wd.skins||{}).length;
     const pc=(wd.presses||[]).length;
+    const holes=holes_ref[wd.side||'front'];
+    const parTot=holes.reduce((s,h)=>s+h.p,0);
+    const cardId=`hist-card-${idx}`;
+
+    // Build scorecard rows for each real player
+    const scRows=wd.players.map((pl,i)=>{
+      const scores=holes.map((_,hi)=>wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+i]:'-');
+      const tot=scores.reduce((s,v)=>typeof v==='number'&&v<99?s+v:s,0);
+      const validScores=scores.filter(v=>typeof v==='number'&&v<99);
+      const totDisplay=validScores.length?tot:'-';
+      return`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:2px 3px;font-size:11px;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${pl.name}${pl.isSub?'*':''}</td>
+        ${scores.map((s,hi)=>{
+          if(s==='-'||s>=99) return`<td style="text-align:center;padding:2px 3px;font-size:11px;color:var(--border)">-</td>`;
+          const diff=s-holes[hi].p;
+          const bg=diff<=-2?'#7F77DD':diff===-1?'var(--blue-l)':'transparent';
+          const col=diff<=-2?'#fff':diff===-1?'var(--blue-d)':'var(--text)';
+          const br=diff<=-1?'50%':'2px';
+          return`<td style="text-align:center;padding:2px 3px;font-size:11px"><span style="background:${bg};color:${col};border-radius:${br};padding:1px 3px;display:inline-block;min-width:16px">${s}</span></td>`;
+        }).join('')}
+        <td style="text-align:center;padding:2px 3px;font-size:11px;font-weight:700">${totDisplay}</td>
+      </tr>`;
+    }).join('');
+
+    const scorecard=`<div id="${cardId}" style="display:none;margin-top:10px;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tr style="background:var(--navy-l)">
+          <th style="text-align:left;padding:2px 3px;font-size:10px;color:var(--navy)">Player</th>
+          ${holes.map(h=>`<th style="text-align:center;padding:2px 3px;font-size:10px;color:var(--navy)">H${h.n}</th>`).join('')}
+          <th style="text-align:center;padding:2px 3px;font-size:10px;color:var(--navy)">Tot</th>
+        </tr>
+        <tr style="background:var(--bg)">
+          <td style="padding:2px 3px;font-size:10px;color:var(--text2)">Par</td>
+          ${holes.map(h=>`<td style="text-align:center;padding:2px 3px;font-size:10px;color:var(--text2)">${h.p}</td>`).join('')}
+          <td style="text-align:center;padding:2px 3px;font-size:10px;color:var(--text2)">${parTot}</td>
+        </tr>
+        ${scRows}
+      </table>
+      <div style="font-size:10px;color:var(--text2);margin-top:4px">🟣 Eagle &nbsp; 🔵 Birdie</div>
+    </div>`;
+
     return`<div class="card">
-      <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-        <strong>Week ${wd.week} <span class="badge badge-navy" style="font-size:10px">${wd.side==='front'?'Front':'Back'} 9</span></strong>
-        <div style="display:flex;align-items:center;gap:5px"><span class="tee-badge" style="width:18px;height:18px;font-size:10px">${wd.teeTime||'?'}</span><span style="font-size:11px;color:var(--text2)">${wd.date}</span></div>
+      <div onclick="toggleHistCard('${cardId}',this)" style="cursor:pointer">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <strong>Week ${wd.week} <span class="badge badge-navy" style="font-size:10px">${wd.side==='front'?'Front':'Back'} 9</span></strong>
+          <div style="display:flex;align-items:center;gap:5px">
+            <span class="tee-badge" style="width:18px;height:18px;font-size:10px">${wd.teeTime||'?'}</span>
+            <span style="font-size:11px;color:var(--text2)">${wd.date}</span>
+            <span id="${cardId}-arrow" style="font-size:12px;color:var(--text2)">▼</span>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">${wd.players.map(p=>p.name+(p.isSub?' (sub)':'')).join(' · ')}</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <span class="badge badge-green">${wl}</span>
+          <span class="badge badge-gold">${sc} skin${sc!==1?'s':''}</span>
+          ${pc?`<span class="badge" style="background:#fff3cd;color:#7a5800">${pc} press${pc!==1?'es':''}</span>`:''}
+        </div>
       </div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">${wd.players.map(p=>p.name+(p.isSub?' (sub)':'')).join(' · ')}</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <span class="badge badge-green">${wl}</span>
-        <span class="badge badge-gold">${sc} skin${sc!==1?'s':''}</span>
-        ${pc?`<span class="badge" style="background:#fff3cd;color:#7a5800">${pc} press${pc!==1?'es':''}</span>`:''}
-      </div>
+      ${scorecard}
     </div>`;
   }).join('');
   document.getElementById('hist-list').innerHTML=html;
@@ -1888,10 +1962,10 @@ function selectTeeTime(n){
     yr.weeks.filter(w=>w.week===wk&&w.side===side).map(w=>Number(w.teeTime))
   );
   if(usedTimes.has(n)){
-    // Force a hard confirm before allowing selection of a used tee time
+    // Inform but allow — could be a single/partial group playing with an existing group
     doConfirm(
-      `⚠️ Tee Time ${n} was already submitted this week!`,
-      `This could mean someone already entered scores for this group. Only continue if you are sure this is YOUR tee time. Duplicates will cause scoring errors.`,
+      `Tee Time ${n} already has scores submitted`,
+      `This is OK if you are a single or partial group playing with that tee time. Tap Confirm to continue.`,
       ()=>{ applyTeeTimeSelection(n); }
     );
     return;
@@ -1943,6 +2017,14 @@ function closeConfirm(){document.getElementById('c-overlay').classList.remove('s
 // ── UTILS ─────────────────────────────────────────────────────
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 function fname(n){return n?n.split(' ')[0]:'';}
+function toggleHistCard(id,header){
+  const card=document.getElementById(id);
+  const arrow=document.getElementById(id+'-arrow');
+  if(!card)return;
+  const isOpen=card.style.display!=='none';
+  card.style.display=isOpen?'none':'block';
+  if(arrow) arrow.textContent=isOpen?'▼':'▲';
+}
 </script>
 </body>
 </html>
