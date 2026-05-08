@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.25</title>
+<title>OCBC Golf League v1.26</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -211,7 +211,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.25</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.26</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.25</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.26</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -2162,8 +2162,15 @@ function settleSkinsManual(){
   const db=getDB();const yr=getYear(db);
   const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
   const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  calcLeagueWideSkinsCTP(db,yr,wk,side);saveDB(db);
-  renderHome();showToast('Skins & CTP settled manually ✓');
+  calcLeagueWideSkinsCTP(db,yr,wk,side);
+  saveDB(db);
+  renderHome();
+  renderSkins();
+  renderCTP();
+  renderAdminSkinsLb();
+  renderAdminCtpLb();
+  renderAdminMoneyLb();
+  showToast('Skins & CTP settled ✓');
 }
 
 // ── PAST WEEK SCORE ENTRY ─────────────────────────────────────
@@ -2374,8 +2381,12 @@ function renderSkins(){
     const thisWeekRounds=yr.weeks.filter(w=>w.week===wk);
     const side=thisWeekRounds[0]?thisWeekRounds[0].side||'front':'front';
     const settled=thisWeekRounds.some(w=>w.skinsSettled);
-    const leagueSkins=settled?(thisWeekRounds[0].skins||{}):{};
-    const skinPay=settled?(thisWeekRounds[0].skinPay||0):0;
+    // Find the round that has skins data (may not be index 0)
+    const settledRound=thisWeekRounds.find(w=>w.skinsSettled&&w.skins&&Object.keys(w.skins).length>0)
+                      ||thisWeekRounds.find(w=>w.skinsSettled)
+                      ||thisWeekRounds[0];
+    const leagueSkins=settled?(settledRound.skins||{}):{};
+    const skinPay=settled?(settledRound.skinPay||0):0;
     const skinCnt=Object.keys(leagueSkins).length;
     let body='';
     if(!settled){
@@ -2419,7 +2430,15 @@ function renderAdminSkinsLb(){
   const el=document.getElementById('admin-skins-lb');
   if(!el)return;
   const skinsMap={};
-  [...yr.weeks].sort((a,b)=>b.week-a.week).forEach(wd=>{
+  // Group by week and get skins from settled rounds
+  const weekMap={};
+  yr.weeks.forEach(wd=>{
+    if(wd.skinsSettled&&wd.skins&&Object.keys(wd.skins).length>0){
+      if(!weekMap[wd.week]||Object.keys(wd.skins).length>Object.keys(weekMap[wd.week].skins||{}).length)
+        weekMap[wd.week]=wd;
+    }
+  });
+  Object.values(weekMap).sort((a,b)=>b.week-a.week).forEach(wd=>{
     Object.entries(wd.skins||{}).forEach(function(e){
       var hole=e[0],name=e[1];
       if(!name)return;
