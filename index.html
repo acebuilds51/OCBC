@@ -1571,6 +1571,337 @@ function renderLb(){
 }
 
 // ── ADMIN MONEY LEADERBOARD (commissioner only) ──────────────
+function goTo(id){
+  const ls=document.getElementById('s-loading');if(ls)ls.style.display='none';
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('bnav').style.display='none';
+  if(id==='s-setup')resetSetupForm();
+  window.scrollTo(0,0);
+}
+// ── TAB / SCREEN NAVIGATION ──────────────────────────────────
+function showTab(t){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('s-tabs').classList.add('active');
+  document.getElementById('bnav').style.display='flex';
+  ['leaderboard','history','live','ctp','skins','admin'].forEach(x=>{
+    document.getElementById('tab-'+x).classList.toggle('active',x===t);
+    const nb=document.getElementById('nb-'+x);if(nb)nb.classList.toggle('active',x===t);
+  });
+  const T={leaderboard:'Leaderboard',history:'Season History',live:'Live Scoring',ctp:'CTP Leaders',skins:'Skins Leaders',admin:'Admin Settings'};
+  const S={leaderboard:'Scores, averages & hot streaks',history:'All rounds played',live:'Live hole-by-hole · updates every 60s',ctp:'Closest to the pin leaders',skins:'Skin winners by week',admin:'Commissioner access'};
+  document.getElementById('tab-title').textContent=T[t];
+  document.getElementById('tab-sub').textContent=S[t];
+  if(t==='live'){startLiveAutoRefresh();}else{stopLiveAutoRefresh();}
+  if(t==='leaderboard')renderLb();
+  if(t==='history')renderHistory();
+  if(t==='ctp')renderCTP();
+  if(t==='skins')renderSkins();
+  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();}
+  window.scrollTo(0,0);
+}
+function hideBnav(){document.getElementById('bnav').style.display='none';}
+
+// ── CONFIRM DIALOG ────────────────────────────────────────────
+function doConfirm(titleOrMsg,msgOrFn,fn){
+  let title,msg,callback;
+  if(typeof msgOrFn==='function'){title='Are you sure?';msg=titleOrMsg;callback=msgOrFn;}
+  else{title=titleOrMsg;msg=msgOrFn;callback=fn;}
+  document.getElementById('c-title').textContent=title;
+  document.getElementById('c-msg').textContent=msg;
+  document.getElementById('c-yes').onclick=()=>{closeConfirm();callback();};
+  document.getElementById('c-overlay').classList.add('show');
+}
+function closeConfirm(){document.getElementById('c-overlay').classList.remove('show');}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+function fname(n){return n?n.split(' ')[0]:'';}
+function toggleHistCard(id){
+  const card=document.getElementById(id);
+  const arrow=document.getElementById(id+'-arrow');
+  if(!card)return;
+  const isOpen=card.style.display!=='none';
+  card.style.display=isOpen?'none':'block';
+  if(arrow)arrow.textContent=isOpen?'▼':'▲';
+}
+
+// ── SYNC BAR ──────────────────────────────────────────────────
+function setSynced(msg){
+  const dot=document.getElementById('sync-dot');const st=document.getElementById('sync-status');
+  if(dot){dot.className='sync-dot ok';}if(st)st.textContent=msg||'Connected';
+}
+function setSyncErr(msg){
+  const dot=document.getElementById('sync-dot');const st=document.getElementById('sync-status');
+  if(dot){dot.className='sync-dot err';}if(st)st.textContent=msg||'Connection error';
+}
+function setSyncing(msg){
+  const dot=document.getElementById('sync-dot');const st=document.getElementById('sync-status');
+  if(dot){dot.className='sync-dot syncing';}if(st)st.textContent=msg||'Syncing...';
+}
+function updateSyncBar(){
+  const db=getDB();
+  if(db.sheetUrl){setSynced('Connected · tap ⟳ to refresh');}
+  else{setSyncErr('Not connected');}
+}
+
+// ── SHEET URL ─────────────────────────────────────────────────
+function saveSheetUrl(){
+  const url=document.getElementById('sheet-url').value.trim();
+  const db=getDB();db.sheetUrl=url;saveDB(db);updateSyncBar();
+  if(url)testConnection(url);
+}
+function clearSheetUrl(){const db=getDB();db.sheetUrl='';saveDB(db);const el=document.getElementById('sheet-url');if(el)el.value='';updateSyncBar();}
+async function testConnection(url){
+  setSyncing('Testing connection...');
+  try{
+    const r=await fetch(url+'?action=ping');
+    const d=await r.json();
+    if(d.ok){setSynced('Connected ✓');}else{setSyncErr('Sheet error: '+d.error);}
+  }catch(e){setSyncErr('Could not reach sheet');}
+}
+
+// ── SEASON HISTORY ────────────────────────────────────────────
+function renderHistory(){
+  const db=getDB();const yr=getYear(db);
+  const el=document.getElementById('hist-list');if(!el)return;
+  const HFRONT=[{n:1,p:4},{n:2,p:3},{n:3,p:5},{n:4,p:4},{n:5,p:3},{n:6,p:4},{n:7,p:4},{n:8,p:4},{n:9,p:4}];
+  const HBACK=[{n:10,p:4},{n:11,p:4},{n:12,p:3},{n:13,p:5},{n:14,p:3},{n:15,p:4},{n:16,p:3},{n:17,p:5},{n:18,p:4}];
+  if(!yr.weeks||!yr.weeks.length){el.innerHTML='<div class="empty-state"><div style="font-size:32px">📋</div><p>No rounds submitted yet.</p></div>';return;}
+  const html=yr.weeks.slice().reverse().map(function(wd,idx){
+    const holes=wd.side==='back'?HBACK:HFRONT;
+    const parTot=holes.reduce(function(s,h){return s+h.p;},0);
+    const numP=wd.players.length;
+    let wl='';
+    if(numP>=2){
+      if(wd.matchWinner==='A') wl=fname(wd.players[0].name)+'/'+(numP>1?fname(wd.players[1].name):'')+' won';
+      else if(wd.matchWinner==='B') wl=(numP>2?fname(wd.players[2].name):'')+(numP>3?'/'+fname(wd.players[3].name):'')+' won';
+      else wl='Tied';
+    } else wl='Individual';
+    const sc=Object.keys(wd.skins||{}).length;
+    const pc=(wd.presses||[]).length;
+    const cardId='hist-card-'+idx;
+    const scRows=wd.players.map(function(pl,i){
+      const scores=holes.map(function(_,hi){return wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+i]:'-';});
+      const tot=scores.reduce(function(s,v){return typeof v==='number'&&v<99?s+v:s;},0);
+      const valid=scores.filter(function(v){return typeof v==='number'&&v<99;});
+      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:2px 3px;font-size:11px;font-weight:500">'+pl.name+(pl.isSub?'*':'')+'</td>'+
+        scores.map(function(s,hi){
+          if(s==='-'||s>=99)return '<td style="text-align:center;padding:2px 3px;font-size:11px;color:var(--border)">-</td>';
+          const diff=s-holes[hi].p;
+          const bg=diff<=-2?'#7F77DD':diff===-1?'var(--blue-l)':'transparent';
+          const col=diff<=-2?'#fff':diff===-1?'var(--blue-d)':'var(--text)';
+          const br=diff<=-1?'50%':'2px';
+          return '<td style="text-align:center;padding:2px 3px;font-size:11px"><span style="background:'+bg+';color:'+col+';border-radius:'+br+';padding:1px 3px;display:inline-block;min-width:16px">'+s+'</span></td>';
+        }).join('')+
+        '<td style="text-align:center;padding:2px 3px;font-size:11px;font-weight:700">'+(valid.length?tot:'-')+'</td></tr>';
+    }).join('');
+    const scorecard='<div id="'+cardId+'" style="display:none;margin-top:10px;overflow-x:auto">'+
+      '<table style="width:100%;border-collapse:collapse;font-size:11px">'+
+      '<tr style="background:var(--navy-l)"><th style="text-align:left;padding:2px 3px;font-size:10px;color:var(--navy)">Player</th>'+
+      holes.map(function(h){return '<th style="text-align:center;padding:2px 3px;font-size:10px;color:var(--navy)">H'+h.n+'</th>';}).join('')+
+      '<th style="text-align:center;padding:2px 3px;font-size:10px;color:var(--navy)">Tot</th></tr>'+
+      '<tr style="background:var(--bg)"><td style="padding:2px 3px;font-size:10px;color:var(--text2)">Par</td>'+
+      holes.map(function(h){return '<td style="text-align:center;padding:2px 3px;font-size:10px;color:var(--text2)">'+h.p+'</td>';}).join('')+
+      '<td style="text-align:center;padding:2px 3px;font-size:10px;color:var(--text2)">'+parTot+'</td></tr>'+
+      scRows+'</table>'+
+      '<div style="font-size:10px;color:var(--text2);margin-top:4px">🟣 Eagle &nbsp; 🔵 Birdie</div></div>';
+    const onclk='toggleHistCard('+JSON.stringify(cardId)+')';
+    return '<div class="card">'+
+      '<div onclick="'+onclk+'" style="cursor:pointer">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:5px">'+
+      '<strong>Week '+wd.week+' <span class="badge badge-navy" style="font-size:10px">'+(wd.side==='front'?'Front':'Back')+' 9</span></strong>'+
+      '<div style="display:flex;align-items:center;gap:5px">'+
+      '<span class="tee-badge" style="width:18px;height:18px;font-size:10px">'+(wd.teeTime||'?')+'</span>'+
+      '<span style="font-size:11px;color:var(--text2)">'+wd.date+'</span>'+
+      '<span id="'+cardId+'-arrow" style="font-size:12px;color:var(--text2)">▼</span>'+
+      '</div></div>'+
+      '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+wd.players.map(function(p){return p.name+(p.isSub?' (sub)':'');}).join(' · ')+'</div>'+
+      '<div style="display:flex;gap:5px;flex-wrap:wrap">'+
+      '<span class="badge badge-green">'+wl+'</span>'+
+      '<span class="badge badge-gold">'+sc+' skin'+(sc!==1?'s':'')+'</span>'+
+      (pc?'<span class="badge" style="background:#fff3cd;color:#7a5800">'+pc+' press'+(pc!==1?'es':'')+'</span>':'')+
+      '</div></div>'+scorecard+'</div>';
+  }).join('');
+  el.innerHTML=html;
+}
+
+// ── SAVE ROUND ────────────────────────────────────────────────
+async function saveRound(wd){
+  const db=getDB();const yr=getYear(db);
+  if(!yr.weeks)yr.weeks=[];
+  yr.weeks.push(wd);saveDB(db);
+  if(!db.sheetUrl){showToast('Saved locally (no sheet connected)');return;}
+  setSyncing('Saving to sheet...');
+  try{
+    const r=await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveRound',year:db.activeYear,data:wd})});
+    const d=await r.json();
+    if(d.ok){setSynced('Round saved ✓');}else{setSyncErr('Sheet error: '+d.error);}
+  }catch(e){setSyncErr('Saved locally — sheet unreachable');}
+}
+
+// ── TEE TIME GRID ─────────────────────────────────────────────
+function populateTeeTimeSelect(){renderTeeTimeGrid();}
+function renderTeeTimeGrid(selected){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const usedTimes=new Set(yr.weeks.filter(w=>w.week===wk&&w.side===side).map(w=>Number(w.teeTime)));
+  const grid=document.getElementById('tee-time-grid');if(!grid)return;
+  grid.innerHTML=[1,2,3,4,5,6,7,8,9].map(n=>{
+    const used=usedTimes.has(n);
+    const isSelected=Number(selected)===n;
+    const bg=isSelected?'var(--navy)':'var(--white)';
+    const color=isSelected?'#fff':'var(--text)';
+    const border=isSelected?'2px solid var(--navy)':'2px solid var(--border)';
+    const opacity=used&&!isSelected?'0.45':'1';
+    const sub=n===1?'1st out':n===9?'Last out':'';
+    return'<button onclick="selectTeeTime('+n+')" style="padding:12px 6px;border-radius:var(--rsm);border:'+border+';background:'+bg+';color:'+color+';font-size:22px;font-weight:700;cursor:pointer;opacity:'+opacity+';display:flex;flex-direction:column;align-items:center;gap:2px;-webkit-tap-highlight-color:transparent">'+n+(sub?'<span style="font-size:9px;font-weight:500;opacity:.7">'+sub+'</span>':'')+(used&&!isSelected?'<span style="font-size:9px;color:var(--red);font-weight:700">used</span>':'')+'</button>';
+  }).join('');
+}
+function selectTeeTime(n){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const usedTimes=new Set(yr.weeks.filter(w=>w.week===wk&&w.side===side).map(w=>Number(w.teeTime)));
+  if(usedTimes.has(n)){
+    doConfirm('Tee Time '+n+' already has scores submitted','This is OK if you are a single or partial group playing with that tee time. Tap Confirm to continue.',()=>{applyTeeTimeSelection(n);});
+    return;
+  }
+  applyTeeTimeSelection(n);
+}
+function applyTeeTimeSelection(n){
+  const tt=document.getElementById('tee-time');if(tt)tt.value=n;
+  renderTeeTimeGrid(n);
+  const warn=document.getElementById('tee-time-warning');if(warn)warn.style.display='none';
+  chkSelects();
+}
+function resetSetupForm(){
+  const tt=document.getElementById('tee-time');if(tt)tt.value='';
+  const warn=document.getElementById('tee-time-warning');if(warn)warn.style.display='none';
+  populateTeeTimeSelect();
+  [1,2,3,4].forEach(n=>{
+    const sel=document.getElementById('p'+n);if(sel)sel.value='';
+    const cb=document.getElementById('p'+n+'-sub');if(cb)cb.checked=false;
+    const sn=document.getElementById('p'+n+'-sn');if(sn){sn.value='';sn.style.display='none';}
+    const selEl=document.getElementById('p'+n);if(selEl)selEl.style.display='block';
+  });
+  const btn=document.getElementById('btn-go');if(btn)btn.disabled=true;
+}
+
+// ── ADMIN ─────────────────────────────────────────────────────
+function syncAdminUI(){
+  const db=getDB();const yr=getYear(db);
+  const adminUnlocked=localStorage.getItem('adminUnlocked')==='true';
+  ['adm-panel'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=adminUnlocked?'block':'none';});
+  const lockEl=document.getElementById('adm-lock');if(lockEl)lockEl.style.display=adminUnlocked?'none':'block';
+  const su=document.getElementById('sheet-url');if(su)su.value=db.sheetUrl||'';
+  const yr_sel=document.getElementById('adm-year');if(yr_sel)yr_sel.value=db.activeYear||new Date().getFullYear();
+  const sd=document.getElementById('adm-start-date');if(sd)sd.value=yr.seasonStartDate||'';
+  const side1=document.getElementById('adm-side1');if(side1)side1.value=yr.week1Side||'front';
+  const calcEl=document.getElementById('adm-calc-week');
+  if(calcEl){
+    if(yr.seasonStartDate){
+      const wk=calcCurrentWeek(yr);const side=calcCurrentSide(yr);
+      const startD=new Date(yr.seasonStartDate);
+      const daysSince=Math.floor((new Date()-startD)/(1000*60*60*24));
+      calcEl.textContent='Week '+wk+' — '+(side==='front'?'Front 9':'Back 9')+' (start: '+yr.seasonStartDate+', '+daysSince+' days ago)';
+    }else{calcEl.textContent='Set start date above';}
+  }
+  const roEl=document.getElementById('adm-rainouts');
+  if(roEl)roEl.value=(yr.rainouts||[]).join(', ');
+  const sideOvEl=document.getElementById('adm-side-override');
+  if(sideOvEl)sideOvEl.textContent=yr.sideOverride?('Overridden: '+(yr.sideOverride==='front'?'Front 9':'Back 9')):'No override set';
+  const sideStatusEl=document.getElementById('side-override-status');
+  if(sideStatusEl)sideStatusEl.textContent='';
+}
+function renderPlayers(){
+  const db=getDB();
+  const el=document.getElementById('adm-players');if(!el)return;
+  const players=[...db.players].sort();
+  el.innerHTML=players.map(p=>'<div class="player-row"><span>'+p+'</span></div>').join('');
+}
+function saveSeasonSettings(){
+  const db=getDB();const yr=getYear(db);
+  const sd=document.getElementById('adm-start-date');if(sd&&sd.value)yr.seasonStartDate=sd.value;
+  const side1=document.getElementById('adm-side1');if(side1)yr.week1Side=side1.value;
+  saveDB(db);syncAdminUI();renderHome();
+  showToast('Season settings saved ✓');
+}
+function changeYear(){
+  const sel=document.getElementById('adm-year');if(!sel)return;
+  const db=getDB();db.activeYear=sel.value;saveDB(db);
+  location.reload();
+}
+function markRainout(){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  if(!yr.rainouts)yr.rainouts=[];
+  if(yr.rainouts.includes(wk)){showToast('Week '+wk+' already marked as rainout');return;}
+  yr.rainouts.push(wk);saveDB(db);renderHome();syncAdminUI();
+  showToast('Week '+wk+' marked as rainout ⛅');
+  const rdb=getDB();
+  if(rdb.sheetUrl){fetch(rdb.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveConfig',data:{['rainouts_'+rdb.activeYear]:JSON.stringify(yr.rainouts)}})}).catch(()=>{});}
+}
+function clearRainout(){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  yr.rainouts=(yr.rainouts||[]).filter(w=>w!==wk);
+  saveDB(db);renderHome();syncAdminUI();showToast('Rainout cleared for Week '+wk);
+}
+function overrideSide(side){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  yr.sideOverride=side;saveDB(db);renderHome();
+  const el=document.getElementById('side-override-status');
+  if(el)el.textContent='Week '+wk+' overridden to '+(side==='front'?'Front 9':'Back 9');
+  showToast('Course side changed to '+(side==='front'?'Front 9':'Back 9'));
+  syncOverrideToSheet(wk,side);
+}
+async function syncOverrideToSheet(wk,side){
+  const db=getDB();if(!db.sheetUrl)return;
+  try{
+    await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveConfig',data:{['sideOverride_'+db.activeYear+'_wk'+wk]:side,['currentSide_'+db.activeYear]:side}})});
+    showToast('Side override synced ✓');
+  }catch(e){showToast('Saved locally — others should refresh');}
+}
+function clearSideOverride(){
+  const db=getDB();const yr=getYear(db);
+  yr.sideOverride=null;saveDB(db);renderHome();syncAdminUI();
+  showToast('Side override cleared');
+}
+function resetCurrentYear(){
+  doConfirm('Reset all '+getDB().activeYear+' data?','This will delete all rounds, stats and settings for this year. Cannot be undone.',()=>{
+    const db=getDB();const yr=getYear(db);
+    yr.weeks=[];yr.rainouts=[];yr.sideOverride=null;yr.seasonStartDate=null;yr.currentWeek=1;yr.currentSide='front';
+    saveDB(db);location.reload();
+  });
+}
+function submitLock(){
+  const pw=document.getElementById('lock-input');if(!pw)return;
+  const db=getDB();
+  if(pw.value===db.adminPw||pw.value==='OCBC2025'){
+    localStorage.setItem('adminUnlocked','true');pw.value='';syncAdminUI();showToast('Admin unlocked ✓');
+  }else{showToast('Incorrect password');pw.value='';}
+}
+function lockAdmin(){
+  localStorage.removeItem('adminUnlocked');syncAdminUI();showToast('Admin locked');
+}
+function saveNewPassword(){
+  const np=document.getElementById('new-pw');const cp=document.getElementById('confirm-pw');
+  if(!np||!cp)return;
+  if(np.value!==cp.value){showToast('Passwords do not match');return;}
+  if(np.value.length<4){showToast('Password too short');return;}
+  const db=getDB();db.adminPw=np.value;saveDB(db);np.value='';cp.value='';
+  showToast('Password updated ✓');
+}
+function settleSkinsManual(){
+  const db=getDB();const yr=getYear(db);
+  calcLeagueWideSkinsCTP(yr,db.activeYear);saveDB(db);
+  renderHome();showToast('Skins & CTP settled manually ✓');
+}
+
+
 function renderAdminMoneyLb(){
   const db=getDB();const yr=getYear(db);
   const el=document.getElementById('admin-money-lb');
