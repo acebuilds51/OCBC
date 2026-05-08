@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.18</title>
+<title>OCBC Golf League v1.19</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -211,7 +211,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.18</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.19</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.18</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.19</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -518,6 +518,43 @@ label:first-child{margin-top:0}
         <input type="number" id="scramble-pot" min="0" value="0" placeholder="e.g. 200" onchange="saveScrambleSettings()">
         <p style="font-size:11px;color:var(--text2);margin-top:4px">Each of the 4 winning players receives pot ÷ 4</p>
         <div id="scramble-status" style="margin-top:8px;font-size:13px;font-weight:600;color:var(--green-d)"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📝 Enter Past Week Scores</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter scores for a tee time that was missed in a previous week.</p>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:100px">
+            <label style="font-size:11px;color:var(--text2)">Week</label>
+            <select id="past-week-sel" style="width:100%;margin-top:3px" onchange="updatePastWeekSide()">
+            </select>
+          </div>
+          <div style="flex:1;min-width:100px">
+            <label style="font-size:11px;color:var(--text2)">Course Side</label>
+            <select id="past-side-sel" style="width:100%;margin-top:3px">
+              <option value="front">Front 9</option>
+              <option value="back">Back 9</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:100px">
+            <label style="font-size:11px;color:var(--text2)">Tee Time</label>
+            <select id="past-tee-sel" style="width:100%;margin-top:3px">
+              <option value="">-- Select --</option>
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+              <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+              <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+            </select>
+          </div>
+        </div>
+        <div id="past-players-block">
+          <label style="font-size:11px;color:var(--text2)">Players (P1 required, others optional)</label>
+          <select id="past-p1" style="width:100%;margin-top:3px;margin-bottom:6px"><option value="">-- Player 1 --</option></select>
+          <select id="past-p2" style="width:100%;margin-bottom:6px"><option value="">-- Player 2 (optional) --</option></select>
+          <select id="past-p3" style="width:100%;margin-bottom:6px"><option value="">-- Player 3 (optional) --</option></select>
+          <select id="past-p4" style="width:100%;margin-bottom:10px"><option value="">-- Player 4 (optional) --</option></select>
+        </div>
+        <button class="btn btn-navy" style="width:100%" onclick="openPastScoreEntry()">▶ Enter Scores for This Group</button>
+        <div id="past-entry-status" style="margin-top:8px;font-size:12px;color:var(--green-d)"></div>
       </div>
 
       <div class="card">
@@ -890,7 +927,7 @@ function chkSelects(){
 // ── START SCORING ────────────────────────────────────────────
 function startScoring(){
   const db=getDB();const yr=getYear(db);
-  ST.teeTime=parseInt(document.getElementById('tee-time').value);
+  ST.teeTime=ST._pastMode?ST._pastTeeTime:parseInt(document.getElementById('tee-time').value);
   ST.players=[1,2,3,4].map(n=>{
     const isSub=document.getElementById(`p${n}-sub`)?.checked;
     const name=getPVal(n);
@@ -898,7 +935,7 @@ function startScoring(){
     if(isSub&&name&&!db.players.includes(name)&&!db.subs.includes(name)){db.subs.push(name);saveDB(db);}
     return{name,isSub:isSub||db.subs.includes(name)};
   }).filter(p=>p!==null);
-  const currentSide=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const currentSide=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
   const holes=HOLES[currentSide];
   ST.holeIdx=0;ST.awins=0;ST.bwins=0;
   // Init scores only for actual players, others ignored
@@ -914,7 +951,7 @@ function startScoring(){
 // ── SCORING HOLE ─────────────────────────────────────────────
 function renderScoringHole(){
   const db=getDB();const yr=getYear(db);
-  const scoringSide=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const scoringSide=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
   const holes=HOLES[scoringSide];
   const hole=holes[ST.holeIdx];
   const isPar3=hole.p===3;
@@ -1014,7 +1051,7 @@ function callPress(team){
 }
 function saveCtp(){
   const db=getDB();const yr=getYear(db);
-  const ctpSide=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const ctpSide=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
   const hole=HOLES[ctpSide][ST.holeIdx];
   if(hole.p===3){const el=document.getElementById('ctp'+hole.n);if(el)ST.ctpWinners[hole.n]=el.value;}
 }
@@ -1029,7 +1066,7 @@ function resolveHole(){
 function nextHole(){
   // Require CTP selection on par 3 holes before advancing
   const db=getDB();const yr=getYear(db);
-  const scoringSide=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const scoringSide=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
   const hole=HOLES[scoringSide][ST.holeIdx];
   if(hole.p===3){
     const ctpEl=document.getElementById('ctp'+hole.n);
@@ -1070,8 +1107,8 @@ function finishRound(){
 // ── CALC ─────────────────────────────────────────────────────
 function calcResults(){
   const db=getDB();const yr=getYear(db);
-  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const side=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
+  const wk=ST._pastMode?ST._pastWeek:(yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek);
   const holes=HOLES[side];
   const names=ST.players.map(p=>p.name);
 
@@ -1597,7 +1634,7 @@ function showTab(t){
   if(t==='history')renderHistory();
   if(t==='ctp')renderCTP();
   if(t==='skins')renderSkins();
-  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();}
+  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();}
   window.scrollTo(0,0);
 }
 function hideBnav(){document.getElementById('bnav').style.display='none';}
@@ -1731,6 +1768,7 @@ async function saveRound(wd){
   const db=getDB();const yr=getYear(db);
   if(!yr.weeks)yr.weeks=[];
   yr.weeks.push(wd);saveDB(db);
+  ST._pastMode=false;ST._pastWeek=null;ST._pastSide=null;ST._pastTeeTime=null;
   if(!db.sheetUrl){showToast('Saved locally (no sheet connected)');return;}
   setSyncing('Saving to sheet...');
   try{
@@ -1899,6 +1937,95 @@ function settleSkinsManual(){
   const db=getDB();const yr=getYear(db);
   calcLeagueWideSkinsCTP(yr,db.activeYear);saveDB(db);
   renderHome();showToast('Skins & CTP settled manually ✓');
+}
+
+// ── PAST WEEK SCORE ENTRY ─────────────────────────────────────
+function initPastWeekEntry(){
+  const db=getDB();const yr=getYear(db);
+  const curWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wkSel=document.getElementById('past-week-sel');
+  if(!wkSel)return;
+  wkSel.innerHTML='';
+  for(let w=1;w<curWk;w++){
+    const opt=document.createElement('option');
+    opt.value=w;opt.textContent='Week '+w;
+    wkSel.appendChild(opt);
+  }
+  // Default to most recent past week
+  if(curWk>1) wkSel.value=curWk-1;
+  updatePastWeekSide();
+  // Populate player dropdowns
+  ['past-p1','past-p2','past-p3','past-p4'].forEach((id,i)=>{
+    const sel=document.getElementById(id);
+    if(!sel)return;
+    const blank=i===0?'-- Player 1 --':'-- Player '+(i+1)+' (optional) --';
+    sel.innerHTML='<option value="">'+blank+'</option>'+
+      [...db.players].sort().map(p=>'<option value="'+p+'">'+p+'</option>').join('');
+  });
+}
+
+function updatePastWeekSide(){
+  const db=getDB();const yr=getYear(db);
+  const wk=parseInt(document.getElementById('past-week-sel')?.value||1);
+  // Check if this week already has rounds — use their side
+  const existing=yr.weeks.filter(w=>w.week===wk);
+  const sideSel=document.getElementById('past-side-sel');
+  if(!sideSel)return;
+  if(existing.length){
+    sideSel.value=existing[0].side||'front';
+  } else {
+    // Calculate expected side based on week number and week1Side
+    const week1Side=yr.week1Side||'front';
+    const expectedSide=(wk%2===1)?week1Side:(week1Side==='front'?'back':'front');
+    sideSel.value=expectedSide;
+  }
+}
+
+function openPastScoreEntry(){
+  const db=getDB();const yr=getYear(db);
+  const wk=parseInt(document.getElementById('past-week-sel')?.value||0);
+  const side=document.getElementById('past-side-sel')?.value||'front';
+  const teeTime=parseInt(document.getElementById('past-tee-sel')?.value||0);
+  const p1=document.getElementById('past-p1')?.value;
+  const p2=document.getElementById('past-p2')?.value;
+  const p3=document.getElementById('past-p3')?.value;
+  const p4=document.getElementById('past-p4')?.value;
+
+  if(!wk){showToast('Please select a week');return;}
+  if(!teeTime){showToast('Please select a tee time');return;}
+  if(!p1){showToast('At least Player 1 is required');return;}
+
+  // Check if this tee time already submitted for this week
+  const existing=yr.weeks.find(w=>w.week===wk&&w.teeTime===teeTime);
+  if(existing){
+    doConfirm('Tee Time '+teeTime+' already submitted for Week '+wk,
+      'This will replace the existing entry. Are you sure?',
+      ()=>launchPastEntry(wk,side,teeTime,p1,p2,p3,p4));
+    return;
+  }
+  launchPastEntry(wk,side,teeTime,p1,p2,p3,p4);
+}
+
+function launchPastEntry(wk,side,teeTime,p1,p2,p3,p4){
+  const db=getDB();const yr=getYear(db);
+  // Override the current week/side temporarily for score entry
+  ST._pastMode=true;
+  ST._pastWeek=wk;
+  ST._pastSide=side;
+  ST._pastTeeTime=teeTime;
+  // Build players array
+  const players=[[p1,false],[p2,false],[p3,false],[p4,false]]
+    .filter(([n])=>n)
+    .map(([name,isSub])=>({name,isSub}));
+  ST.players=players;
+  ST.teeTime=teeTime;
+  ST.holeIdx=0;ST.awins=0;ST.bwins=0;ST.ctpWinners={};ST.presses=[];
+  const holes=HOLES[side];
+  ST.scores=holes.map(h=>{const sc={};for(let i=0;i<4;i++)sc['p'+i]=h.p;return sc;});
+  document.getElementById('tab-admin').classList.remove('active');
+  goTo('s-scoring');
+  renderScoringHole();
+  showToast('Entering Week '+wk+' scores for Tee Time '+teeTime);
 }
 
 
