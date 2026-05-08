@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.17</title>
+<title>OCBC Golf League v1.18</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -211,7 +211,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League</h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.18</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.17</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.18</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -1591,60 +1591,56 @@ function renderAdminMoneyLb(){
   el.innerHTML=`<div class="card" style="padding:8px 12px">${rows}</div>`;
 }
 
-// ── SKINS — current week public view ─────────────────────────
+// ── SKINS — all weeks stacked, current on top ────────────────
 function renderSkins(){
   const db=getDB();const yr=getYear(db);
   const el=document.getElementById('skins-list');
   if(!el)return;
   document.getElementById('skins-year-pill').textContent=db.activeYear;
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  // Collect all rounds for this week
-  const thisWeekRounds=yr.weeks.filter(w=>w.week===wk);
-  if(!thisWeekRounds.length){
-    el.innerHTML=`<div class="empty-state"><div style="font-size:32px">💰</div><p>No scores submitted yet for Week ${wk}.</p></div>`;
+  const curWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const allWeeks=[...new Set(yr.weeks.map(w=>w.week))].sort((a,b)=>b-a);
+  if(!allWeeks.length){
+    el.innerHTML='<div class="empty-state"><div style="font-size:32px">💰</div><p>No skins results yet.</p></div>';
     return;
   }
-  // Check if skins are settled (all 9 in)
-  const settled=thisWeekRounds.some(w=>w.skinsSettled);
-  // Gather all skins from settled rounds
-  const leagueSkins=settled?(thisWeekRounds[0].skins||{}):{};
-  const skinPay=settled?(thisWeekRounds[0].skinPay||0):0;
-  const skinCnt=Object.keys(leagueSkins).length;
-  if(!settled){
-    el.innerHTML=`<div class="card" style="text-align:center;padding:20px">
-      <div style="font-size:32px;margin-bottom:8px">⏳</div>
-      <div style="font-weight:600;color:var(--navy)">Week ${wk} Skins Pending</div>
-      <div style="font-size:13px;color:var(--text2);margin-top:6px">${thisWeekRounds.length} of 9 groups submitted.<br>Skins calculated when all 9 are in.</div>
-      <div style="margin-top:10px;font-size:13px;color:var(--text2)">$180 pot · ${9-thisWeekRounds.length} group${9-thisWeekRounds.length!==1?'s':''} remaining</div>
-    </div>`;
-    return;
-  }
-  if(!skinCnt){
-    el.innerHTML=`<div class="card" style="text-align:center;padding:20px">
-      <div style="font-size:32px;margin-bottom:8px">🤝</div>
-      <div style="font-weight:600">No Skins This Week</div>
-      <div style="font-size:13px;color:var(--text2);margin-top:6px">All holes were tied across the league.<br>$180 carries over.</div>
-    </div>`;
-    return;
-  }
-  const rows=Object.entries(leagueSkins).sort((a,b)=>Number(a[0])-Number(b[0])).map(([hole,name])=>
-    `<div class="payout-row">
-      <div><div style="font-weight:600">Hole ${hole}</div></div>
-      <div style="text-align:right">
-        <div style="font-weight:700">${name}</div>
-        <div style="font-size:11px;color:var(--green-d)">+$${skinPay.toFixed(2)}</div>
+  const cards=allWeeks.map(wk=>{
+    const isCurrent=wk===curWk;
+    const thisWeekRounds=yr.weeks.filter(w=>w.week===wk);
+    const side=thisWeekRounds[0]?.side||'front';
+    const settled=thisWeekRounds.some(w=>w.skinsSettled);
+    const leagueSkins=settled?(thisWeekRounds[0].skins||{}):{};
+    const skinPay=settled?(thisWeekRounds[0].skinPay||0):0;
+    const skinCnt=Object.keys(leagueSkins).length;
+    let body='';
+    if(!settled){
+      body=`<div style="text-align:center;padding:10px 0;color:var(--text2);font-size:13px">
+        ⏳ Pending — ${thisWeekRounds.length} of 9 groups in
+      </div>`;
+    } else if(!skinCnt){
+      body='<div style="text-align:center;padding:10px 0;color:var(--text2);font-size:13px">🤝 No skins — all holes tied</div>';
+    } else {
+      body=Object.entries(leagueSkins).sort((a,b)=>Number(a[0])-Number(b[0])).map(([hole,name])=>
+        `<div class="payout-row">
+          <div><div style="font-weight:600">Hole ${hole}</div></div>
+          <div style="text-align:right">
+            <div style="font-weight:700">${name}</div>
+            ${isCurrent?`<div style="font-size:11px;color:var(--green-d)">+$${skinPay.toFixed(2)}</div>`:''}
+          </div>
+        </div>`
+      ).join('');
+      if(isCurrent) body+=`<div style="font-size:12px;color:var(--text2);padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between"><span>Each skin worth</span><span style="font-weight:700;color:var(--green-d)">$${skinPay.toFixed(2)}</span></div>`;
+    }
+    return`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong>Week ${wk} <span class="badge badge-navy" style="font-size:10px">${side==='front'?'Front':'Back'} 9</span>${isCurrent?'<span class="badge badge-green" style="font-size:10px;margin-left:4px">Current</span>':''}</strong>
+        ${settled&&skinCnt?`<span style="font-size:11px;color:var(--text2)">${skinCnt} skin${skinCnt!==1?'s':''}</span>`:''}
       </div>
-    </div>`
-  ).join('');
-  el.innerHTML=`<div class="card">
-    <div class="card-title">Week ${wk} · ${side==='front'?'Front 9':'Back 9'} · $180 pot ÷ ${skinCnt} skin${skinCnt!==1?'s':''}</div>
-    ${rows}
-    <div style="font-size:12px;color:var(--text2);padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between">
-      <span>Each skin worth</span><span style="font-weight:700;color:var(--green-d)">$${skinPay.toFixed(2)}</span>
-    </div>
-  </div>`;
+      ${body}
+    </div>`;
+  }).join('');
+  el.innerHTML=cards;
 }
+
 
 function renderAdminCtpLb(){
   const db=getDB();const yr=getYear(db);
@@ -1699,507 +1695,48 @@ function renderCTP(){
   const el=document.getElementById('ctp-list');
   if(!el)return;
   document.getElementById('ctp-year-pill').textContent=db.activeYear;
-  // Show current week's CTP results only
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  // Get all rounds for this week across all tee times
-  const thisWeekRounds=yr.weeks.filter(w=>w.week===wk);
-  // Gather all CTP winners this week (highest tee time wins per hole)
-  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  const holes=HOLES[side];
-  const par3s=holes.filter(h=>h.p===3);
-  const ctpPay=36;
-  const weekCTP={};
-  par3s.forEach(h=>{
-    let bestTee=0,bestName='';
-    thisWeekRounds.forEach(wd=>{
-      const winner=wd.ctpWinners&&wd.ctpWinners[h.n];
-      if(winner&&winner!=='__HIGHER_TEE__'&&wd.teeTime>bestTee){
-        bestTee=wd.teeTime;bestName=winner;
-      }
+  const curWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const allWeeks=[...new Set(yr.weeks.map(w=>w.week))].sort((a,b)=>b-a);
+  if(!allWeeks.length){
+    el.innerHTML='<div class="empty-state"><div style="font-size:32px">🎯</div><p>No CTP results yet.</p></div>';
+    return;
+  }
+  const cards=allWeeks.map(wk=>{
+    const isCurrent=wk===curWk;
+    const thisWeekRounds=yr.weeks.filter(w=>w.week===wk);
+    const side=thisWeekRounds[0]?.side||'front';
+    const holes=HOLES[side];
+    const par3s=holes.filter(h=>h.p===3);
+    const ctpPay=36;
+    const weekCTP={};
+    par3s.forEach(h=>{
+      let bestTee=0,bestName='';
+      thisWeekRounds.forEach(wd=>{
+        const winner=wd.ctpWinners&&wd.ctpWinners[h.n];
+        if(winner&&winner!=='__HIGHER_TEE__'&&wd.teeTime>bestTee){bestTee=wd.teeTime;bestName=winner;}
+      });
+      weekCTP[h.n]={winner:bestName,teeTime:bestTee};
     });
-    weekCTP[h.n]={winner:bestName,teeTime:bestTee};
-  });
-  const anyResults=thisWeekRounds.length>0;
-  if(!anyResults){
-    el.innerHTML=`<div class="empty-state"><div style="font-size:32px">🎯</div><p>No scores submitted yet for Week ${wk}.</p></div>`;
-    return;
-  }
-  const rows=par3s.map(h=>{
-    const {winner,teeTime}=weekCTP[h.n]||{};
-    return`<div class="payout-row">
-      <div>
-        <div style="font-weight:600">Hole ${h.n} — Par 3</div>
-        <div style="font-size:11px;color:var(--text2)">${winner?`Tee Time ${teeTime}`:'Pending — not all groups in'}</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-weight:700;color:var(--gold-d)">${winner||'—'}</div>
-        <div style="font-size:11px;color:var(--green-d)">${winner?`+$${ctpPay.toFixed(2)}`:''}</div>
-      </div>
-    </div>`;
-  }).join('');
-  const pending=par3s.some(h=>!weekCTP[h.n]?.winner);
-  el.innerHTML=`
-    <div class="card">
-      <div class="card-title">Week ${wk} · ${side==='front'?'Front 9':'Back 9'} · $${ctpPay}/hole</div>
-      ${rows}
-      ${pending?`<div style="font-size:11px;color:var(--text2);padding-top:8px;border-top:1px solid var(--border)">⏳ Some results pending — updates as groups submit</div>`:''}
-    </div>`;
-}
-
-// ── HISTORY ──────────────────────────────────────────────────
-function renderHistory(){
-  const db=getDB();const yr=getYear(db);
-  document.getElementById('hist-year-pill').textContent=db.activeYear;
-  if(!yr.weeks.length){document.getElementById('hist-list').innerHTML=`<div class="empty-state"><div style="font-size:32px">📅</div><p>No rounds yet.</p></div>`;return;}
-  const holes_ref={
-    front:[{n:1,p:4},{n:2,p:3},{n:3,p:5},{n:4,p:4},{n:5,p:3},{n:6,p:4},{n:7,p:4},{n:8,p:4},{n:9,p:4}],
-    back: [{n:10,p:4},{n:11,p:4},{n:12,p:3},{n:13,p:5},{n:14,p:3},{n:15,p:4},{n:16,p:3},{n:17,p:5},{n:18,p:4}]
-  };
-  const html=yr.weeks.slice().reverse().map((wd,idx)=>{
-    const wl=wd.matchWinner==='A'?`${fname(wd.players[0].name)}/${fname(wd.players[1].name)} won`
-            :wd.matchWinner==='B'?`${fname(wd.players[2].name)}/${fname(wd.players[3].name)} won`:'Tied';
-    const sc=Object.keys(wd.skins||{}).length;
-    const pc=(wd.presses||[]).length;
-    const holes=holes_ref[wd.side||'front'];
-    const parTot=holes.reduce((s,h)=>s+h.p,0);
-    const cardId=`hist-card-${idx}`;
-
-    // Build scorecard rows for each real player
-    const scRows=wd.players.map((pl,i)=>{
-      const scores=holes.map((_,hi)=>wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+i]:'-');
-      const tot=scores.reduce((s,v)=>typeof v==='number'&&v<99?s+v:s,0);
-      const validScores=scores.filter(v=>typeof v==='number'&&v<99);
-      const totDisplay=validScores.length?tot:'-';
-      return`<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:2px 3px;font-size:11px;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${pl.name}${pl.isSub?'*':''}</td>
-        ${scores.map((s,hi)=>{
-          if(s==='-'||s>=99) return`<td style="text-align:center;padding:2px 3px;font-size:11px;color:var(--border)">-</td>`;
-          const diff=s-holes[hi].p;
-          const bg=diff<=-2?'#7F77DD':diff===-1?'var(--blue-l)':'transparent';
-          const col=diff<=-2?'#fff':diff===-1?'var(--blue-d)':'var(--text)';
-          const br=diff<=-1?'50%':'2px';
-          return`<td style="text-align:center;padding:2px 3px;font-size:11px"><span style="background:${bg};color:${col};border-radius:${br};padding:1px 3px;display:inline-block;min-width:16px">${s}</span></td>`;
-        }).join('')}
-        <td style="text-align:center;padding:2px 3px;font-size:11px;font-weight:700">${totDisplay}</td>
-      </tr>`;
+    const rows=par3s.map(h=>{
+      const {winner,teeTime}=weekCTP[h.n]||{};
+      const payoutStr=isCurrent&&winner?`<div style="font-size:11px;color:var(--green-d)">+$${ctpPay.toFixed(2)}</div>`:'';
+      return`<div class="payout-row">
+        <div><div style="font-weight:600">Hole ${h.n} — Par 3</div>
+        <div style="font-size:11px;color:var(--text2)">${winner?'Tee Time '+teeTime:'Pending'}</div></div>
+        <div style="text-align:right"><div style="font-weight:700;color:var(--gold-d)">${winner||'—'}</div>${payoutStr}</div>
+      </div>`;
     }).join('');
-
-    const scorecard=`<div id="${cardId}" style="display:none;margin-top:10px;overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:11px">
-        <tr style="background:var(--navy-l)">
-          <th style="text-align:left;padding:2px 3px;font-size:10px;color:var(--navy)">Player</th>
-          ${holes.map(h=>`<th style="text-align:center;padding:2px 3px;font-size:10px;color:var(--navy)">H${h.n}</th>`).join('')}
-          <th style="text-align:center;padding:2px 3px;font-size:10px;color:var(--navy)">Tot</th>
-        </tr>
-        <tr style="background:var(--bg)">
-          <td style="padding:2px 3px;font-size:10px;color:var(--text2)">Par</td>
-          ${holes.map(h=>`<td style="text-align:center;padding:2px 3px;font-size:10px;color:var(--text2)">${h.p}</td>`).join('')}
-          <td style="text-align:center;padding:2px 3px;font-size:10px;color:var(--text2)">${parTot}</td>
-        </tr>
-        ${scRows}
-      </table>
-      <div style="font-size:10px;color:var(--text2);margin-top:4px">🟣 Eagle &nbsp; 🔵 Birdie</div>
-    </div>`;
-
+    const pending=isCurrent&&par3s.some(h=>!weekCTP[h.n]?.winner);
     return`<div class="card">
-      <div onclick="toggleHistCard('${cardId}',this)" style="cursor:pointer">
-        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-          <strong>Week ${wd.week} <span class="badge badge-navy" style="font-size:10px">${wd.side==='front'?'Front':'Back'} 9</span></strong>
-          <div style="display:flex;align-items:center;gap:5px">
-            <span class="tee-badge" style="width:18px;height:18px;font-size:10px">${wd.teeTime||'?'}</span>
-            <span style="font-size:11px;color:var(--text2)">${wd.date}</span>
-            <span id="${cardId}-arrow" style="font-size:12px;color:var(--text2)">▼</span>
-          </div>
-        </div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">${wd.players.map(p=>p.name+(p.isSub?' (sub)':'')).join(' · ')}</div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap">
-          <span class="badge badge-green">${wl}</span>
-          <span class="badge badge-gold">${sc} skin${sc!==1?'s':''}</span>
-          ${pc?`<span class="badge" style="background:#fff3cd;color:#7a5800">${pc} press${pc!==1?'es':''}</span>`:''}
-        </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong>Week ${wk} <span class="badge badge-navy" style="font-size:10px">${side==='front'?'Front':'Back'} 9</span>${isCurrent?'<span class="badge badge-green" style="font-size:10px;margin-left:4px">Current</span>':''}</strong>
+        ${isCurrent?`<span style="font-size:11px;color:var(--gold-d)">$${ctpPay}/hole</span>`:''}
       </div>
-      ${scorecard}
+      ${rows}
+      ${pending?'<div style="font-size:11px;color:var(--text2);padding-top:8px;border-top:1px solid var(--border)">⏳ Pending — not all groups in</div>':''}
     </div>`;
   }).join('');
-  document.getElementById('hist-list').innerHTML=html;
+  el.innerHTML=cards;
 }
 
-// ── PLAYERS ──────────────────────────────────────────────────
-function renderPlayers(){
-  const db=getDB();
-  document.getElementById('p-count').textContent=db.players.length+db.subs.length;
-  const mkR=(n,isSub,i)=>`<div style="display:flex;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
-    <div style="flex:1;font-size:13px">${n}${isSub?'<span class="lb-sub">SUB</span>':''}</div>
-    <button onclick="${isSub?`removeSub(${i})`:`removePlayer(${i})`}" style="padding:3px 9px;border:1px solid var(--border);border-radius:20px;background:none;color:var(--red);font-size:11px;cursor:pointer">Remove</button>
-  </div>`;
-  document.getElementById('p-list').innerHTML=[...db.players.map((n,i)=>mkR(n,false,i)),...db.subs.map((n,i)=>mkR(n,true,i))].join('')||'<div style="color:var(--text2);font-size:13px">No players.</div>';
-}
-function addPlayer(){
-  const inp=document.getElementById('new-player');const name=inp.value.trim();if(!name)return;
-  const db=getDB();
-  if(db.players.includes(name)||db.subs.includes(name)){showToast('Already exists');return;}
-  db.players.push(name);db.players.sort((a,b)=>a.split(' ')[0].localeCompare(b.split(' ')[0]));saveDB(db);inp.value='';renderPlayers();populateSelects();
-  syncRosterToSheet();showToast(`${name} added`);
-}
-function removePlayer(i){const db=getDB();const n=db.players.splice(i,1)[0];saveDB(db);renderPlayers();populateSelects();syncRosterToSheet();showToast(`${n} removed`);}
-function removeSub(i){const db=getDB();const n=db.subs.splice(i,1)[0];saveDB(db);renderPlayers();populateSelects();syncRosterToSheet();showToast(`${n} removed`);}
-
-async function syncRosterToSheet(){
-  const db=getDB();if(!db.sheetUrl)return;
-  try{
-    await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
-      action:'saveConfig',
-      data:{players:JSON.stringify(db.players), subs:JSON.stringify(db.subs||[])}
-    })});
-  }catch(e){}
-}
-
-// ── ADMIN LOCK ────────────────────────────────────────────────
-function tryOpenAdmin(){
-  const db=getDB();
-  if(db.adminUnlocked){showTab('admin');return;}
-  document.getElementById('lock-input').value='';
-  document.getElementById('lock-err').textContent='';
-  document.getElementById('lock-overlay').classList.add('show');
-  setTimeout(()=>document.getElementById('lock-input').focus(),200);
-}
-function submitLock(){
-  const db=getDB();
-  const entered=document.getElementById('lock-input').value;
-  const correct=db.adminPw||DEFAULT_PW;
-  if(entered===correct){
-    db.adminUnlocked=true;saveDB(db);
-    document.getElementById('lock-overlay').classList.remove('show');
-    showTab('admin');
-  } else {
-    document.getElementById('lock-err').textContent='Incorrect password. Try again.';
-    document.getElementById('lock-input').value='';
-    document.getElementById('lock-input').focus();
-  }
-}
-function closeLock(){document.getElementById('lock-overlay').classList.remove('show');}
-function lockAdmin(){
-  const db=getDB();db.adminUnlocked=false;saveDB(db);
-  goTo('s-home');hideBnav();showToast('Admin locked');
-}
-function changePassword(){
-  const np=document.getElementById('new-pw').value;
-  const cp=document.getElementById('confirm-pw').value;
-  if(!np){showToast('Enter a new password');return;}
-  if(np!==cp){showToast('Passwords do not match');return;}
-  if(np.length<4){showToast('Password must be at least 4 characters');return;}
-  const db=getDB();db.adminPw=np;saveDB(db);
-  document.getElementById('new-pw').value='';document.getElementById('confirm-pw').value='';
-  showToast('Password updated ✓');
-}
-
-// ── ADMIN / YEAR ──────────────────────────────────────────────
-function syncAdminUI(){
-  const db=getDB();const yr=getYear(db);
-  const weekEl=document.getElementById('adm-week');
-  if(weekEl) weekEl.value='';
-  const dateEl=document.getElementById('adm-start-date');
-  if(dateEl) dateEl.value=yr.seasonStartDate||'';
-  document.getElementById('adm-side').value=yr.startSide||yr.currentSide||'front';
-  const swEl=document.getElementById('scramble-week-num');if(swEl)swEl.value=yr.scrambleWeek||14;
-  const spEl=document.getElementById('scramble-pot');if(spEl)spEl.value=yr.scramblePot||0;
-  const soEl=document.getElementById('side-override-status');
-  if(soEl&&yr.sideOverride){
-    const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-    soEl.textContent=`Week ${wk} overridden to ${yr.sideOverride==='front'?'Front 9':'Back 9'}`;
-  }
-  const ssEl=document.getElementById('scramble-status');
-  if(ssEl&&yr.scramblePot>0){
-    const perPlayer=((yr.scramblePot||0)/4).toFixed(2);
-    ssEl.textContent=`Week ${yr.scrambleWeek||14} scramble — $${yr.scramblePot} pot — $${perPlayer}/player`;
-  }
-  document.getElementById('sheet-url').value=db.sheetUrl||'';
-  const sel=document.getElementById('adm-year');
-  sel.innerHTML=Object.keys(db.years).sort().reverse().map(y=>`<option value="${y}"${y===db.activeYear?' selected':''}>${y}</option>`).join('');
-  // Show calculated week
-  const calcEl=document.getElementById('adm-calc-week');
-  if(calcEl){
-    if(yr.seasonStartDate){
-      const wk=calcCurrentWeek(yr);
-      const side=calcCurrentSide(yr);
-      const startD=new Date(yr.seasonStartDate);
-      const daysSince=Math.floor((new Date()-startD)/(1000*60*60*24));
-      calcEl.textContent=`Week ${wk} — ${side==='front'?'Front 9':'Back 9'} (start: ${yr.seasonStartDate}, ${daysSince} days ago)`;
-    } else {
-      calcEl.textContent='Set start date above';
-    }
-  }
-}
-function changeYear(){
-  const db=getDB();db.activeYear=document.getElementById('adm-year').value;saveDB(db);
-  renderHome();renderLb();renderHistory();renderCTP();syncAdminUI();showToast(`Viewing ${db.activeYear}`);
-}
-function addNewYear(){
-  const yr=new Date().getFullYear().toString();
-  doConfirm(`Start ${yr} season? Keeps all history.`,()=>{
-    const db=getDB();
-    if(!db.years[yr])db.years[yr]={weeks:[],currentWeek:1,currentSide:'front'};
-    db.activeYear=yr;saveDB(db);syncAdminUI();renderHome();renderLb();renderHistory();renderCTP();showToast(`${yr} started!`);
-  });
-}
-function saveWeekCfg(){
-  const db=getDB();const yr=getYear(db);
-  const dateEl=document.getElementById('adm-start-date');
-  if(dateEl&&dateEl.value) yr.seasonStartDate=dateEl.value;
-  yr.startSide=document.getElementById('adm-side').value;
-  yr.currentSide=yr.startSide;
-  // Only override week if manually entered
-  const manualWeek=parseInt(document.getElementById('adm-week').value);
-  if(manualWeek) yr.currentWeek=manualWeek;
-  saveDB(db);renderHome();syncAdminUI();showToast('Saved');
-}
-function resetSeason(){
-  const db=getDB();const yr=getYear(db);
-  yr.weeks=[];yr.currentWeek=1;yr.currentSide='front';yr.sideOverride=null;yr.rainouts=[];
-  saveDB(db);renderHome();renderLb();renderHistory();renderCTP();syncAdminUI();showToast('Season reset');
-}
-
-function adminSettleSkinsCTP(){
-  const db=getDB();const yr=getYear(db);
-  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  const rounds=yr.weeks.filter(w=>w.week===wk&&w.side===side);
-  if(!rounds.length){showToast('No rounds submitted for this week yet');return;}
-  doConfirm(`Settle skins & CTP for Week ${wk} with ${rounds.length} of 9 groups submitted?`,()=>{
-    calcLeagueWideSkinsCTP(db,yr,wk,side);
-    renderAdminMoneyLb();renderLb();
-    showToast(`Week ${wk} skins & CTP settled with ${rounds.length} groups`);
-  });
-}
-
-function markRainout(){
-  const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  if(!yr.rainouts) yr.rainouts=[];
-  if(yr.rainouts.includes(wk)){showToast(`Week ${wk} already marked as rainout`);return;}
-  doConfirm(`Mark Week ${wk} as a rainout? No scores will be entered for this week.`,()=>{
-    yr.rainouts.push(wk);
-    saveDB(db);renderHome();syncAdminUI();
-    showToast(`Week ${wk} marked as rainout ⛅`);
-    // Sync rainout to sheet
-    const rdb=getDB();
-    if(rdb.sheetUrl){
-      fetch(rdb.sheetUrl,{method:'POST',body:JSON.stringify({
-        action:'saveConfig',
-        data:{['rainouts_'+rdb.activeYear]: JSON.stringify(yr.rainouts)}
-      })}).catch(()=>{});
-    }
-  });
-}
-
-function overrideSide(side){
-  const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  yr.sideOverride=side;
-  saveDB(db);renderHome();
-  document.getElementById('side-override-status').textContent=
-    `Week ${wk} overridden to ${side==='front'?'Front 9':'Back 9'}`;
-  showToast(`Course side changed to ${side==='front'?'Front 9':'Back 9'}`);
-  // Push override to Sheet so all phones pick it up on next refresh
-  syncOverrideToSheet(wk, side);
-}
-
-async function syncOverrideToSheet(wk, side){
-  const db=getDB();if(!db.sheetUrl)return;
-  try{
-    await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
-      action:'saveConfig',
-      data:{
-        ['sideOverride_'+db.activeYear+'_wk'+wk]: side,
-        ['currentSide_'+db.activeYear]: side
-      }
-    })});
-    showToast('Side override synced to all phones ✓');
-  }catch(e){
-    showToast('Saved locally — others should refresh');
-  }
-}
-
-function saveScrambleSettings(){
-  const db=getDB();const yr=getYear(db);
-  const wkEl=document.getElementById('scramble-week-num');
-  const potEl=document.getElementById('scramble-pot');
-  if(wkEl) yr.scrambleWeek=parseInt(wkEl.value)||14;
-  if(potEl) yr.scramblePot=parseFloat(potEl.value)||0;
-  saveDB(db);
-  const perPlayer=((yr.scramblePot||0)/4).toFixed(2);
-  const statusEl=document.getElementById('scramble-status');
-  if(statusEl) statusEl.textContent=
-    yr.scramblePot>0?`Week ${yr.scrambleWeek} scramble — $${yr.scramblePot} pot — $${perPlayer}/player`:'';
-  renderHome();showToast('Scramble settings saved');
-}
-
-// ── SHEETS ────────────────────────────────────────────────────
-function updateSyncBar(){
-  const db=getDB();const dot=document.getElementById('sync-dot');const txt=document.getElementById('sync-status');
-  if(!db.sheetUrl){dot.className='sync-dot';txt.textContent='Not connected to Google Sheets';}
-  else{dot.className='sync-dot ok';txt.textContent='Connected · tap ⟳ to refresh';}
-}
-function saveSheetUrl(){
-  const url=document.getElementById('sheet-url').value.trim();
-  const db=getDB();db.sheetUrl=url;saveDB(db);updateSyncBar();
-  if(url)testConnection(url);
-}
-function clearSheetUrl(){const db=getDB();db.sheetUrl='';saveDB(db);document.getElementById('sheet-url').value='';updateSyncBar();showToast('Disconnected');}
-async function testConnection(url){
-  setSyncing('Testing...');
-  try{const r=await fetch(url+'?action=ping');const d=await r.json();if(d.ok)setSynced('Connected ✓');else setSyncErr('Error');}
-  catch(e){setSyncErr('Cannot reach sheet');}
-}
-async function syncToSheet(wd){
-  const db=getDB();if(!db.sheetUrl)return;
-  setSyncing('Saving...');
-  try{const r=await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveRound',data:wd})});const d=await r.json();if(d.ok)setSynced('Saved ✓');else setSyncErr('Save failed');}
-  catch(e){setSyncErr('Sync failed — saved locally');}
-}
-function setSyncing(m){document.getElementById('sync-dot').className='sync-dot syncing';document.getElementById('sync-status').textContent=m;}
-function setSynced(m){document.getElementById('sync-dot').className='sync-dot ok';document.getElementById('sync-status').textContent=m;}
-function setSyncErr(m){document.getElementById('sync-dot').className='sync-dot err';document.getElementById('sync-status').textContent=m;}
-
-// ── NAV ───────────────────────────────────────────────────────
-function goTo(id){
-  const ls=document.getElementById('s-loading');if(ls)ls.style.display='none';
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  document.getElementById('bnav').style.display='none';
-  // Clear setup screen selections every time it opens
-  if(id==='s-setup') resetSetupForm();
-  window.scrollTo(0,0);
-}
-
-function resetSetupForm(){
-  const tt=document.getElementById('tee-time');
-  if(tt) tt.value='';
-  const warn=document.getElementById('tee-time-warning');
-  if(warn) warn.style.display='none';
-  populateTeeTimeSelect();
-  // Clear all 4 player selects and sub checkboxes
-  [1,2,3,4].forEach(n=>{
-    const sel=document.getElementById('p'+n);
-    if(sel) sel.value='';
-    const cb=document.getElementById('p'+n+'-sub');
-    if(cb){ cb.checked=false; }
-    const sn=document.getElementById('p'+n+'-sn');
-    if(sn){ sn.value=''; sn.style.display='none'; }
-    const selEl=document.getElementById('p'+n);
-    if(selEl) selEl.style.display='block';
-  });
-  // Disable the continue button
-  const btn=document.getElementById('btn-go');
-  if(btn) btn.disabled=true;
-}
-
-function populateTeeTimeSelect(){
-  renderTeeTimeGrid();
-}
-
-function renderTeeTimeGrid(selected){
-  const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  const usedTimes=new Set(
-    yr.weeks.filter(w=>w.week===wk&&w.side===side).map(w=>Number(w.teeTime))
-  );
-  const grid=document.getElementById('tee-time-grid');
-  if(!grid) return;
-  grid.innerHTML=[1,2,3,4,5,6,7,8,9].map(n=>{
-    const used=usedTimes.has(n);
-    const isSelected=Number(selected)===n;
-    let bg=isSelected?'var(--navy)':'var(--white)';
-    let color=isSelected?'#fff':'var(--text)';
-    let border=isSelected?'2px solid var(--navy)':'2px solid var(--border)';
-    let opacity=used&&!isSelected?'0.45':'1';
-    const sub=n===1?'1st out':n===9?'Last out':'';
-    return `<button onclick="selectTeeTime(${n})" style="
-      padding:12px 6px;border-radius:var(--rsm);border:${border};
-      background:${bg};color:${color};font-size:22px;font-weight:700;
-      cursor:pointer;opacity:${opacity};position:relative;
-      display:flex;flex-direction:column;align-items:center;gap:2px;
-      -webkit-tap-highlight-color:transparent">
-      ${n}
-      ${sub?`<span style="font-size:9px;font-weight:500;opacity:.7">${sub}</span>`:''}
-      ${used&&!isSelected?'<span style="font-size:9px;color:var(--red);font-weight:700">used</span>':''}
-    </button>`;
-  }).join('');
-}
-
-function selectTeeTime(n){
-  const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  const usedTimes=new Set(
-    yr.weeks.filter(w=>w.week===wk&&w.side===side).map(w=>Number(w.teeTime))
-  );
-  if(usedTimes.has(n)){
-    // Inform but allow — could be a single/partial group playing with an existing group
-    doConfirm(
-      `Tee Time ${n} already has scores submitted`,
-      `This is OK if you are a single or partial group playing with that tee time. Tap Confirm to continue.`,
-      ()=>{ applyTeeTimeSelection(n); }
-    );
-    return;
-  }
-  applyTeeTimeSelection(n);
-}
-
-function applyTeeTimeSelection(n){
-  const tt=document.getElementById('tee-time');
-  if(tt) tt.value=n;
-  renderTeeTimeGrid(n);
-  const warn=document.getElementById('tee-time-warning');
-  if(warn) warn.style.display='none';
-  chkSelects();
-}
-function showTab(t){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('s-tabs').classList.add('active');
-  document.getElementById('bnav').style.display='flex';
-  ['leaderboard','history','live','ctp','skins','admin'].forEach(x=>{
-    document.getElementById('tab-'+x).classList.toggle('active',x===t);
-    const nb=document.getElementById('nb-'+x);if(nb)nb.classList.toggle('active',x===t);
-  });
-  const T={leaderboard:'Leaderboard',history:'Season History',live:'Live Scoring',ctp:'CTP Leaders',skins:'Skins Leaders',admin:'Admin Settings'};
-  const S={leaderboard:'Scores, averages & hot streaks',history:'All rounds played',live:'Live hole-by-hole · updates every 60s',ctp:'Closest to the pin leaders',skins:'Skin winners by week',admin:'Commissioner access'};
-  document.getElementById('tab-title').textContent=T[t];document.getElementById('tab-sub').textContent=S[t];
-  if(t==='live'){startLiveAutoRefresh();}else{stopLiveAutoRefresh();}
-  if(t==='leaderboard')renderLb();
-  if(t==='history')renderHistory();
-  if(t==='ctp')renderCTP();
-  if(t==='skins')renderSkins();
-  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();}
-  window.scrollTo(0,0);
-}
-function hideBnav(){document.getElementById('bnav').style.display='none';}
-
-// ── CONFIRM ───────────────────────────────────────────────────
-function doConfirm(titleOrMsg,msgOrFn,fn){
-  // Supports doConfirm(msg, fn) and doConfirm(title, msg, fn)
-  let title,msg,callback;
-  if(typeof msgOrFn==='function'){title='Are you sure?';msg=titleOrMsg;callback=msgOrFn;}
-  else{title=titleOrMsg;msg=msgOrFn;callback=fn;}
-  document.getElementById('c-title').textContent=title;
-  document.getElementById('c-msg').textContent=msg;
-  document.getElementById('c-yes').onclick=()=>{closeConfirm();callback();};
-  document.getElementById('c-overlay').classList.add('show');
-}
-function closeConfirm(){document.getElementById('c-overlay').classList.remove('show');}
-
-// ── UTILS ─────────────────────────────────────────────────────
-function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
-function fname(n){return n?n.split(' ')[0]:'';}
-function toggleHistCard(id,header){
-  const card=document.getElementById(id);
-  const arrow=document.getElementById(id+'-arrow');
-  if(!card)return;
-  const isOpen=card.style.display!=='none';
-  card.style.display=isOpen?'none':'block';
-  if(arrow) arrow.textContent=isOpen?'▼':'▲';
-}
-</script>
-</body>
-</html>
+>
