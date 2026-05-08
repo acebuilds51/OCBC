@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.21</title>
+<title>OCBC Golf League v1.22</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -211,7 +211,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.21</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.22</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.21</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.22</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -551,10 +551,28 @@ label:first-child{margin-top:0}
         </div>
         <div id="past-players-block">
           <label style="font-size:11px;color:var(--text2)">Players (P1 required, others optional)</label>
-          <select id="past-p1" style="width:100%;margin-top:3px;margin-bottom:6px"><option value="">-- Player 1 --</option></select>
-          <select id="past-p2" style="width:100%;margin-bottom:6px"><option value="">-- Player 2 (optional) --</option></select>
-          <select id="past-p3" style="width:100%;margin-bottom:6px"><option value="">-- Player 3 (optional) --</option></select>
-          <select id="past-p4" style="width:100%;margin-bottom:10px"><option value="">-- Player 4 (optional) --</option></select>
+          <div style="margin-top:6px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <select id="past-p1" style="flex:1"><option value="">-- Player 1 --</option></select>
+              <label style="font-size:11px;white-space:nowrap"><input type="checkbox" id="past-p1-sub" onchange="pastSubToggle(1)"> Sub</label>
+              <input type="text" id="past-p1-sn" placeholder="Sub name" style="display:none;flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--rsm);font-size:13px">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <select id="past-p2" style="flex:1"><option value="">-- Player 2 (optional) --</option></select>
+              <label style="font-size:11px;white-space:nowrap"><input type="checkbox" id="past-p2-sub" onchange="pastSubToggle(2)"> Sub</label>
+              <input type="text" id="past-p2-sn" placeholder="Sub name" style="display:none;flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--rsm);font-size:13px">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <select id="past-p3" style="flex:1"><option value="">-- Player 3 (optional) --</option></select>
+              <label style="font-size:11px;white-space:nowrap"><input type="checkbox" id="past-p3-sub" onchange="pastSubToggle(3)"> Sub</label>
+              <input type="text" id="past-p3-sn" placeholder="Sub name" style="display:none;flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--rsm);font-size:13px">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <select id="past-p4" style="flex:1"><option value="">-- Player 4 (optional) --</option></select>
+              <label style="font-size:11px;white-space:nowrap"><input type="checkbox" id="past-p4-sub" onchange="pastSubToggle(4)"> Sub</label>
+              <input type="text" id="past-p4-sn" placeholder="Sub name" style="display:none;flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--rsm);font-size:13px">
+            </div>
+          </div>
         </div>
         <button class="btn btn-navy" style="width:100%" onclick="openPastScoreEntry()">▶ Enter Scores for This Group</button>
         <div id="past-entry-status" style="margin-top:8px;font-size:12px;color:var(--green-d)"></div>
@@ -2103,6 +2121,37 @@ function settleSkinsManual(){
 }
 
 // ── PAST WEEK SCORE ENTRY ─────────────────────────────────────
+function pastSubToggle(n){
+  const cb=document.getElementById('past-p'+n+'-sub');
+  const sel=document.getElementById('past-p'+n);
+  const sn=document.getElementById('past-p'+n+'-sn');
+  if(!cb||!sel||!sn)return;
+  if(cb.checked){
+    sel.style.display='none';
+    sn.style.display='block';
+    sn.focus();
+  } else {
+    sel.style.display='block';
+    sn.style.display='none';
+    sn.value='';
+  }
+}
+
+function getPastPlayerVal(n){
+  const cb=document.getElementById('past-p'+n+'-sub');
+  if(cb&&cb.checked){
+    const sn=document.getElementById('past-p'+n+'-sn');
+    return sn?sn.value.trim():'';
+  }
+  const sel=document.getElementById('past-p'+n);
+  return sel?sel.value:'';
+}
+
+function isPastSub(n){
+  const cb=document.getElementById('past-p'+n+'-sub');
+  return cb?cb.checked:false;
+}
+
 function initPastWeekEntry(){
   const db=getDB();const yr=getYear(db);
   const curWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
@@ -2117,13 +2166,19 @@ function initPastWeekEntry(){
   // Default to most recent past week
   if(curWk>1) wkSel.value=curWk-1;
   updatePastWeekSide();
-  // Populate player dropdowns
-  ['past-p1','past-p2','past-p3','past-p4'].forEach((id,i)=>{
-    const sel=document.getElementById(id);
-    if(!sel)return;
-    const blank=i===0?'-- Player 1 --':'-- Player '+(i+1)+' (optional) --';
-    sel.innerHTML='<option value="">'+blank+'</option>'+
-      [...db.players].sort().map(p=>'<option value="'+p+'">'+p+'</option>').join('');
+  // Populate player dropdowns and reset sub state
+  [1,2,3,4].forEach(n=>{
+    const blank=n===1?'-- Player 1 --':'-- Player '+n+' (optional) --';
+    const sel=document.getElementById('past-p'+n);
+    if(sel){
+      sel.innerHTML='<option value="">'+blank+'</option>'+
+        [...db.players].sort().map(p=>'<option value="'+p+'">'+p+'</option>').join('');
+      sel.style.display='block';
+    }
+    const cb=document.getElementById('past-p'+n+'-sub');
+    if(cb)cb.checked=false;
+    const sn=document.getElementById('past-p'+n+'-sn');
+    if(sn){sn.value='';sn.style.display='none';}
   });
 }
 
@@ -2149,37 +2204,46 @@ function openPastScoreEntry(){
   const wk=parseInt(document.getElementById('past-week-sel')?.value||0);
   const side=document.getElementById('past-side-sel')?.value||'front';
   const teeTime=parseInt(document.getElementById('past-tee-sel')?.value||0);
-  const p1=document.getElementById('past-p1')?.value;
-  const p2=document.getElementById('past-p2')?.value;
-  const p3=document.getElementById('past-p3')?.value;
-  const p4=document.getElementById('past-p4')?.value;
+  const p1=getPastPlayerVal(1);
+  const p2=getPastPlayerVal(2);
+  const p3=getPastPlayerVal(3);
+  const p4=getPastPlayerVal(4);
+  const s1=isPastSub(1);
+  const s2=isPastSub(2);
+  const s3=isPastSub(3);
+  const s4=isPastSub(4);
 
   if(!wk){showToast('Please select a week');return;}
   if(!teeTime){showToast('Please select a tee time');return;}
   if(!p1){showToast('At least Player 1 is required');return;}
 
-  // Check if this tee time already submitted for this week
   const existing=yr.weeks.find(w=>w.week===wk&&w.teeTime===teeTime);
   if(existing){
     doConfirm('Tee Time '+teeTime+' already submitted for Week '+wk,
       'This will replace the existing entry. Are you sure?',
-      ()=>launchPastEntry(wk,side,teeTime,p1,p2,p3,p4));
+      ()=>launchPastEntry(wk,side,teeTime,p1,p2,p3,p4,s1,s2,s3,s4));
     return;
   }
-  launchPastEntry(wk,side,teeTime,p1,p2,p3,p4);
+  launchPastEntry(wk,side,teeTime,p1,p2,p3,p4,s1,s2,s3,s4);
 }
 
-function launchPastEntry(wk,side,teeTime,p1,p2,p3,p4){
+function launchPastEntry(wk,side,teeTime,p1,p2,p3,p4,s1,s2,s3,s4){
   const db=getDB();const yr=getYear(db);
-  // Override the current week/side temporarily for score entry
   ST._pastMode=true;
   ST._pastWeek=wk;
   ST._pastSide=side;
   ST._pastTeeTime=teeTime;
-  // Build players array
-  const players=[[p1,false],[p2,false],[p3,false],[p4,false]]
+  // Build players array including sub flags
+  const players=[[p1,s1||false],[p2,s2||false],[p3,s3||false],[p4,s4||false]]
     .filter(([n])=>n)
     .map(([name,isSub])=>({name,isSub}));
+  // Register any new subs
+  players.forEach(pl=>{
+    if(pl.isSub&&!db.players.includes(pl.name)&&!db.subs.includes(pl.name)){
+      db.subs.push(pl.name);
+    }
+  });
+  saveDB(db);
   ST.players=players;
   ST.teeTime=teeTime;
   ST.holeIdx=0;ST.awins=0;ST.bwins=0;ST.ctpWinners={};ST.presses=[];
