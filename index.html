@@ -957,15 +957,25 @@ function renderScoringHole(){
   const isPar3=hole.p===3;
 
   document.getElementById('sc-hole-hdr').textContent=`Hole ${hole.n} · Par ${hole.p}`;
-  document.getElementById('sc-sub').textContent=`${yr.currentSide==='front'?'Front':'Back'} 9 — Week ${yr.currentWeek} — Tee ${ST.teeTime}`;
+  const dispSide=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
+  const dispWk=ST._pastMode?ST._pastWeek:(yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek);
+  document.getElementById('sc-sub').textContent=`${dispSide==='front'?'Front':'Back'} 9 — Week ${dispWk} — Tee ${ST.teeTime||ST._pastTeeTime}`;
   document.getElementById('sc-prog').textContent=ST.holeIdx+1;
   document.getElementById('sc-dots').innerHTML=holes.map((_,i)=>`<div class="dot${i===ST.holeIdx?' cur':i<ST.holeIdx?' done':''}"></div>`).join('');
 
   const [a,b,c,d]=ST.players;
-  document.getElementById('sc-teams').innerHTML=
-    `<span style="color:var(--green-d);font-weight:700">${fname(a.name)}/${fname(b.name)}</span><br>`+
-    `<span style="color:var(--text2);font-size:9px">vs</span><br>`+
-    `<span style="color:var(--blue-d);font-weight:700">${fname(c.name)}/${fname(d.name)}</span>`;
+  const teamEl=document.getElementById('sc-teams');
+  if(teamEl){
+    const teamA=[a,b].filter(Boolean).map(p=>fname(p.name)).join('/');
+    const teamB=[c,d].filter(Boolean).map(p=>fname(p.name)).join('/');
+    if(teamB){
+      teamEl.innerHTML=`<span style="color:var(--green-d);font-weight:700">${teamA}</span><br>`+
+        `<span style="color:var(--text2);font-size:9px">vs</span><br>`+
+        `<span style="color:var(--blue-d);font-weight:700">${teamB}</span>`;
+    } else {
+      teamEl.innerHTML=`<span style="color:var(--green-d);font-weight:700">${teamA}</span>`;
+    }
+  }
 
   if(ST.holeIdx>0){
     document.getElementById('match-bar').style.display='block';
