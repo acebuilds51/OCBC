@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.26</title>
+<title>OCBC Golf League v1.28</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -211,7 +211,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.26</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.28</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.26</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.28</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -1899,7 +1899,16 @@ function renderHistory(){
       else if(wd.matchWinner==='B') wl=(numP>2?fname(wd.players[2].name):'')+(numP>3?'/'+fname(wd.players[3].name):'')+' won';
       else wl='Tied';
     } else wl='Individual';
-    const sc=Object.keys(wd.skins||{}).length;
+    // Show settled league-wide skin count (holes won by any player in this group)
+    // wd.skins after settle = league-wide skins, not group-only
+    const skinsSettled=wd.skinsSettled||false;
+    const leagueSkins=wd.skins||{};
+    // Count skins won by players in this group
+    const groupPlayerNames=wd.players.map(p=>p.name);
+    if(wd.p5&&wd.p5.name) groupPlayerNames.push(wd.p5.name);
+    const sc=skinsSettled
+      ? Object.values(leagueSkins).filter(n=>groupPlayerNames.includes(n)).length
+      : 0; // don't show skin count until settled
     const pc=(wd.presses||[]).length;
     const cardId='hist-card-'+idx;
     const scRows=wd.players.map(function(pl,i){
@@ -1938,11 +1947,34 @@ function renderHistory(){
       '<span id="'+cardId+'-arrow" style="font-size:12px;color:var(--text2)">▼</span>'+
       '</div></div>'+
       '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">'+wd.players.map(function(p){return p.name+(p.isSub?' (sub)':'');}).join(' · ')+'</div>'+
-      '<div style="display:flex;gap:5px;flex-wrap:wrap">'+
-      '<span class="badge badge-green">'+wl+'</span>'+
-      '<span class="badge badge-gold">'+sc+' skin'+(sc!==1?'s':'')+'</span>'+
-      (pc?'<span class="badge" style="background:#fff3cd;color:#7a5800">'+pc+' press'+(pc!==1?'es':'')+'</span>':'')+
-      '</div></div>'+scorecard+'</div>';
+      // Count birdies and eagles across all players in this group
+      (function(){
+        var birdies=0,eagles=0;
+        var HFRONT=[{n:1,p:4},{n:2,p:3},{n:3,p:5},{n:4,p:4},{n:5,p:3},{n:6,p:4},{n:7,p:4},{n:8,p:4},{n:9,p:4}];
+        var HBACK=[{n:10,p:4},{n:11,p:4},{n:12,p:3},{n:13,p:5},{n:14,p:3},{n:15,p:4},{n:16,p:3},{n:17,p:5},{n:18,p:4}];
+        var hls=wd.side==='back'?HBACK:HFRONT;
+        wd.players.forEach(function(pl,pi){
+          hls.forEach(function(h,hi){
+            var s=wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+pi]:null;
+            if(s&&s<99){
+              var diff=s-h.p;
+              if(diff<=-2) eagles++;
+              else if(diff===-1) birdies++;
+            }
+          });
+        });
+        var beBadges='';
+        if(eagles>0) beBadges+='<span class="badge" style="background:#7F77DD;color:#fff">🦅 '+eagles+' eagle'+(eagles!==1?'s':'')+'</span>';
+        if(birdies>0) beBadges+='<span class="badge" style="background:var(--blue-l);color:var(--blue-d)">🐦 '+birdies+' birdie'+(birdies!==1?'s':'')+'</span>';
+        return '<div style="display:flex;gap:5px;flex-wrap:wrap">'+
+          '<span class="badge badge-green">'+wl+'</span>'+
+          (skinsSettled
+            ? '<span class="badge badge-gold">'+sc+' skin'+(sc!==1?'s':'')+'</span>'
+            : '<span class="badge" style="background:var(--gold-l);color:var(--gold-d)">Skins pending</span>')+
+          (pc?'<span class="badge" style="background:#fff3cd;color:#7a5800">'+pc+' press'+(pc!==1?'es':'')+'</span>':'')+
+          beBadges+
+          '</div>';
+      }())+'</div>'+scorecard+'</div>';
   }).join('');
   el.innerHTML=html;
 }
