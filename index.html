@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.28</title>
+<title>OCBC Golf League v1.29</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -211,7 +211,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.28</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.29</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.28</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.29</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -1893,11 +1893,30 @@ function renderHistory(){
     const holes=wd.side==='back'?HBACK:HFRONT;
     const parTot=holes.reduce(function(s,h){return s+h.p;},0);
     const numP=wd.players.length;
+    // Calculate best ball hole winners for green highlights and match score
+    var holeWinner=[];
+    var holeWins={A:0,B:0};
+    holes.forEach(function(h,hi){
+      var s0=wd.scores&&wd.scores[hi]?wd.scores[hi].p0:99;
+      var s1=wd.scores&&wd.scores[hi]?wd.scores[hi].p1:99;
+      var s2=wd.scores&&wd.scores[hi]?wd.scores[hi].p2:99;
+      var s3=wd.scores&&wd.scores[hi]?wd.scores[hi].p3:99;
+      var ba=Math.min(s0<99?s0:99,s1<99?s1:99);
+      var bb=Math.min(s2<99?s2:99,s3<99?s3:99);
+      if(ba<99&&bb<99){
+        if(ba<bb){holeWins.A++;holeWinner.push('A');}
+        else if(bb<ba){holeWins.B++;holeWinner.push('B');}
+        else holeWinner.push(null);
+      } else if(ba<99){holeWins.A++;holeWinner.push('A');}
+      else if(bb<99){holeWins.B++;holeWinner.push('B');}
+      else holeWinner.push(null);
+    });
     let wl='';
     if(numP>=2){
-      if(wd.matchWinner==='A') wl=fname(wd.players[0].name)+'/'+(numP>1?fname(wd.players[1].name):'')+' won';
-      else if(wd.matchWinner==='B') wl=(numP>2?fname(wd.players[2].name):'')+(numP>3?'/'+fname(wd.players[3].name):'')+' won';
-      else wl='Tied';
+      var scoreStr=' ('+holeWins.A+'–'+holeWins.B+')';
+      if(wd.matchWinner==='A') wl=fname(wd.players[0].name)+'/'+(numP>1?fname(wd.players[1].name):'')+' won'+scoreStr;
+      else if(wd.matchWinner==='B') wl=(numP>2?fname(wd.players[2].name):'')+(numP>3?'/'+fname(wd.players[3].name):'')+' won'+scoreStr;
+      else wl='Tied'+scoreStr;
     } else wl='Individual';
     // Show settled league-wide skin count (holes won by any player in this group)
     // wd.skins after settle = league-wide skins, not group-only
@@ -1915,16 +1934,26 @@ function renderHistory(){
       const scores=holes.map(function(_,hi){return wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+i]:'-';});
       const tot=scores.reduce(function(s,v){return typeof v==='number'&&v<99?s+v:s;},0);
       const valid=scores.filter(function(v){return typeof v==='number'&&v<99;});
-      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:2px 3px;font-size:11px;font-weight:500">'+pl.name+(pl.isSub?'*':'')+'</td>'+
+      // Team: players 0+1 = Team A, players 2+3 = Team B
+      const team=i<=1?'A':'B';
+      return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:3px 4px;font-size:11px;font-weight:600">'+pl.name+(pl.isSub?'*':'')+'</td>'+
         scores.map(function(s,hi){
-          if(s==='-'||s>=99)return '<td style="text-align:center;padding:2px 3px;font-size:11px;color:var(--border)">-</td>';
+          if(s==='-'||s>=99)return '<td style="text-align:center;padding:2px 2px;font-size:11px;color:var(--border)">-</td>';
           const diff=s-holes[hi].p;
-          const bg=diff<=-2?'#7F77DD':diff===-1?'var(--blue-l)':'transparent';
-          const col=diff<=-2?'#fff':diff===-1?'var(--blue-d)':'var(--text)';
-          const br=diff<=-1?'50%':'2px';
-          return '<td style="text-align:center;padding:2px 3px;font-size:11px"><span style="background:'+bg+';color:'+col+';border-radius:'+br+';padding:1px 3px;display:inline-block;min-width:16px">'+s+'</span></td>';
+          // Score circle style
+          var scoreStyle='';
+          if(diff<=-2){
+            scoreStyle='background:#7F77DD;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px';
+          } else if(diff===-1){
+            scoreStyle='background:var(--blue-d);color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px';
+          } else {
+            scoreStyle='font-size:11px;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px';
+          }
+          // Cell background: green tint if this player's team won this hole
+          var cellBg=holeWinner[hi]===team?'background:rgba(29,158,117,0.12);':'';
+          return '<td style="text-align:center;padding:2px 1px;'+cellBg+'"><span style="'+scoreStyle+'">'+s+'</span></td>';
         }).join('')+
-        '<td style="text-align:center;padding:2px 3px;font-size:11px;font-weight:700">'+(valid.length?tot:'-')+'</td></tr>';
+        '<td style="text-align:center;padding:2px 3px;font-size:12px;font-weight:700">'+(valid.length?tot:'-')+'</td></tr>';
     }).join('');
     const scorecard='<div id="'+cardId+'" style="display:none;margin-top:10px;overflow-x:auto">'+
       '<table style="width:100%;border-collapse:collapse;font-size:11px">'+
