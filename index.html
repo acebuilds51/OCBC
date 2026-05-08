@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.22</title>
+<title>OCBC Golf League v1.25</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -211,7 +211,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.22</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.25</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.22</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.25</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -290,6 +290,12 @@ label:first-child{margin-top:0}
       <input type="text" id="p3-sn" placeholder="Sub name" style="display:none;margin-top:5px"></div>
       <label style="margin-top:10px">Player 4 <span style="font-weight:400;color:var(--text2)">— optional</span></label>
       <select id="p4" onchange="chkSelects()"><option value="">-- Leave blank if not playing --</option></select>
+      <label style="margin-top:10px">Player 5 <span style="font-weight:400;color:var(--text2)">— optional · skins & CTP only, not best ball</span></label>
+      <select id="p5" onchange="chkSelects()"><option value="">-- Leave blank if not playing --</option></select>
+      <div id="p5-sub-row" style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <label style="font-size:12px"><input type="checkbox" id="p5-sub" onchange="toggleSub(5)"> Sub</label>
+        <input type="text" id="p5-sn" placeholder="Sub name" style="display:none;flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--rsm);font-size:13px">
+      </div>
       <div style="margin-top:7px"><label style="display:flex;align-items:center;gap:7px;margin:0;font-size:13px"><input type="checkbox" id="p4-sub" onchange="toggleSub(4)" style="width:17px;height:17px"> Sub / Guest?</label>
       <input type="text" id="p4-sn" placeholder="Sub name" style="display:none;margin-top:5px"></div>
     </div>
@@ -747,7 +753,7 @@ function isRainoutWeek(yr){
 }
 
 // ── STATE ────────────────────────────────────────────────────
-let ST={players:[],holeIdx:0,scores:[],ctpWinners:{},teeTime:1,presses:[],awins:0,bwins:0};
+let ST={players:[],p5:null,holeIdx:0,scores:[],ctpWinners:{},p5scores:[],presses:[],awins:0,bwins:0};
 
 function saveSTProgress(){
   try{localStorage.setItem('ocbcgl4_st',JSON.stringify(ST));}catch(e){}
@@ -958,7 +964,7 @@ function populateSelects(){
   const db=getDB();
   const all=[...db.players,...db.subs];
   const opts='<option value="">-- Select --</option>'+all.map(p=>`<option value="${p}">${p}${db.subs.includes(p)?' (sub)':''}</option>`).join('');
-  [1,2,3,4].forEach(i=>{const el=document.getElementById('p'+i);if(el)el.innerHTML=opts;});
+  [1,2,3,4,5].forEach(i=>{const el=document.getElementById('p'+i);if(el)el.innerHTML=opts;});
 }
 function toggleSub(n){
   const cb=document.getElementById(`p${n}-sub`);
@@ -988,8 +994,17 @@ function startScoring(){
     const name=getPVal(n);
     if(!name) return null;
     if(isSub&&name&&!db.players.includes(name)&&!db.subs.includes(name)){db.subs.push(name);saveDB(db);}
-    return{name,isSub:isSub||db.subs.includes(name)};
+    return{name,isSub:isSub||db.subs.includes(name),skinsOnly:false};
   }).filter(p=>p!==null);
+  // P5 — skins & CTP only, not part of best ball teams
+  const p5name=getPVal(5);
+  if(p5name){
+    const p5sub=document.getElementById('p5-sub')?.checked;
+    if(p5sub&&!db.players.includes(p5name)&&!db.subs.includes(p5name)){db.subs.push(p5name);saveDB(db);}
+    ST.p5={name:p5name,isSub:p5sub||db.subs.includes(p5name),skinsOnly:true};
+  } else {
+    ST.p5=null;
+  }
   const currentSide=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
   const holes=HOLES[currentSide];
   ST.holeIdx=0;ST.awins=0;ST.bwins=0;
@@ -999,6 +1014,7 @@ function startScoring(){
     for(let i=0;i<4;i++) sc['p'+i]=h.p;
     return sc;
   });
+  ST.p5scores=holes.map(h=>h.p); // one score per hole for p5
   ST.ctpWinners={};ST.presses=[];
   renderScoringHole();goTo('s-scoring');
 }
@@ -1052,7 +1068,16 @@ function renderScoringHole(){
         <div class="snum" id="sn${i}">${sc['p'+i]}</div>
         <button class="sbtn" onclick="adj(${i},1)">+</button>
       </div>
-    </div>`).join('');
+    </div>`).join('')+
+    (ST.p5?`
+    <div class="score-cell" style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px">
+      <div class="pname" style="color:var(--text2)">${ST.p5.name}${ST.p5.isSub?'<span class="lb-sub">S</span>':''} <span style="font-size:9px;color:var(--text2)">(skins)</span></div>
+      <div class="score-wrap">
+        <button class="sbtn" onclick="adjP5(-1)">−</button>
+        <div class="snum" id="sn-p5">${ST.p5scores[ST.holeIdx]}</div>
+        <button class="sbtn" onclick="adjP5(1)">+</button>
+      </div>
+    </div>`:'');
   // Fill unused player slots with 0 so calcs work
   for(let i=ST.players.length;i<4;i++) sc['p'+i]=99; // 99 = not playing, excluded from best ball/skins
 
@@ -1064,7 +1089,8 @@ function renderScoringHole(){
       <div class="ctp-lbl">🎯 Closest to the Pin — $${pp} — Tee ${ST.teeTime} has priority</div>
       <select id="ctp${hole.n}">
         <option value="">-- Select CTP winner --</option>
-        ${ST.players.map(pl=>`<option value="${pl.name}"${pl.name===cur?' selected':''}>${pl.name}</option>`).join('')}
+        ${[...ST.players,...(ST.p5?[ST.p5]:[])]
+          .map(pl=>`<option value="${pl.name}"${pl.name===cur?' selected':''}>${pl.name}${pl.skinsOnly?' (skins)':''}</option>`).join('')}
         <option value="__HIGHER_TEE__"${cur==='__HIGHER_TEE__'?' selected':''}>No one in our group</option>
       </select>
       <p style="font-size:11px;color:var(--text2);margin-top:4px">If a later tee time beats your best, select "No one in our group"</p>
@@ -1105,6 +1131,15 @@ function renderScoringHole(){
       ${ST.holeIdx<8?`<button class="btn btn-green" onclick="nextHole()">Next Hole →</button>`:`<button class="btn btn-gold" onclick="finishRound()">✓ Finish Round</button>`}
     </div>
     <p style="text-align:center;font-size:11px;color:var(--text2);margin-top:7px">Tap − / + to adjust scores</p>`;
+}
+
+function adjP5(d){
+  const db=getDB();const yr=getYear(db);
+  const scoringSide=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
+  const hole=HOLES[scoringSide][ST.holeIdx];
+  ST.p5scores[ST.holeIdx]=Math.max(1,Math.min(15,ST.p5scores[ST.holeIdx]+d));
+  document.getElementById('sn-p5').textContent=ST.p5scores[ST.holeIdx];
+  saveSTProgress();
 }
 
 function adj(i,d){const sc=ST.scores[ST.holeIdx];sc['p'+i]=Math.max(1,sc['p'+i]+d);document.getElementById('sn'+i).textContent=sc['p'+i];saveLiveProgress();saveSTProgress();}
@@ -1513,10 +1548,17 @@ function calcLeagueWideSkinsCTP(db,yr,wk,side){
     wd.players.forEach((pl,i)=>{
       wd.scores.forEach((sc,hi)=>{
         const score=sc['p'+i]||0;
-        if(score<99) // exclude placeholder scores for missing players
+        if(score<99)
           holeScores[holes[hi].n].push({name:pl.name,score:score});
       });
     });
+    // Include p5 (skins only player) in hole scores
+    if(wd.p5&&wd.p5scores&&wd.p5scores.length){
+      wd.p5scores.forEach((score,hi)=>{
+        if(score&&score<99&&holes[hi])
+          holeScores[holes[hi].n].push({name:wd.p5.name,score:score});
+      });
+    }
   });
 
   // Skins: low score across ALL 36 — any tie = no skin
@@ -1900,6 +1942,10 @@ function renderHistory(){
 }
 
 // ── SAVE ROUND ────────────────────────────────────────────────
+function syncToSheet(wd){
+  saveRound(wd);
+}
+
 async function saveRound(wd){
   const db=getDB();const yr=getYear(db);
   if(!yr.weeks)yr.weeks=[];
@@ -1955,7 +2001,7 @@ function resetSetupForm(){
   const tt=document.getElementById('tee-time');if(tt)tt.value='';
   const warn=document.getElementById('tee-time-warning');if(warn)warn.style.display='none';
   populateTeeTimeSelect();
-  [1,2,3,4].forEach(n=>{
+  [1,2,3,4,5].forEach(n=>{
     const sel=document.getElementById('p'+n);if(sel)sel.value='';
     const cb=document.getElementById('p'+n+'-sub');if(cb)cb.checked=false;
     const sn=document.getElementById('p'+n+'-sn');if(sn){sn.value='';sn.style.display='none';}
