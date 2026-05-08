@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.12</title>
+<title>OCBC Golf League v1.14</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.12</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.14</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -241,6 +241,7 @@ label:first-child{margin-top:0}
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('leaderboard')">📊 Leaderboard &amp; Averages</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('history')">📅 Season History</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('ctp')">🎯 CTP Leaderboard</button>
+    <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('skins')">💰 Skins Leaderboard</button>
   </div>
   <div id="week-alert-banner"></div>
   <div class="section" style="padding-top:0">
@@ -396,6 +397,15 @@ label:first-child{margin-top:0}
     </div>
     <div class="section" id="ctp-list"></div>
   </div>
+
+  <!-- SKINS TAB -->
+  <div id="tab-skins" class="tab-content">
+    <div style="padding:9px 15px 0;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;font-weight:600">Skins Leaders:</span>
+      <span id="skins-year-pill" class="year-pill"></span>
+    </div>
+    <div class="section" id="skins-list"></div>
+  </div>
   <!-- ADMIN TAB (locked) -->
   <div id="tab-admin" class="tab-content">
     <div class="section">
@@ -537,6 +547,10 @@ label:first-child{margin-top:0}
   <button class="bnav-btn" id="nb-ctp" onclick="showTab('ctp')">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
     <span>CTP</span>
+  </button>
+  <button class="bnav-btn" id="nb-skins" onclick="showTab('skins')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+    <span>Skins</span>
   </button>
   <button class="bnav-btn" id="nb-admin" onclick="tryOpenAdmin()">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
@@ -1553,24 +1567,115 @@ function renderAdminMoneyLb(){
   el.innerHTML=`<div class="card" style="padding:8px 12px">${rows}</div>`;
 }
 
+// ── SKINS LEADERBOARD ────────────────────────────────────────
+function renderSkins(){
+  const db=getDB();const yr=getYear(db);
+  document.getElementById('skins-year-pill').textContent=db.activeYear;
+
+  // Build per-player skin totals, sorted latest week first
+  const skinsMap={};
+  const sortedWeeks=[...yr.weeks].sort((a,b)=>b.week-a.week);
+
+  sortedWeeks.forEach(wd=>{
+    const leagueSkins=wd.skins||{};
+    Object.entries(leagueSkins).forEach(([hole,name])=>{
+      if(!name)return;
+      if(!skinsMap[name])skinsMap[name]={count:0,entries:[]};
+      skinsMap[name].count++;
+      skinsMap[name].entries.push({
+        week:wd.week,
+        hole:'H'+hole,
+        payout:wd.skinPay||0
+      });
+    });
+  });
+
+  // Also build weekly skins log (all skins by week, latest first)
+  const weeklyLog=[];
+  sortedWeeks.forEach(wd=>{
+    const leagueSkins=wd.skins||{};
+    const skinCnt=Object.keys(leagueSkins).length;
+    if(!skinCnt)return;
+    const skinPay=wd.skinPay||0;
+    weeklyLog.push({
+      week:wd.week,
+      side:wd.side,
+      date:wd.date,
+      skins:leagueSkins,
+      skinPay
+    });
+  });
+
+  const el=document.getElementById('skins-list');
+  if(!el)return;
+
+  if(!weeklyLog.length&&!Object.keys(skinsMap).length){
+    el.innerHTML=`<div class="empty-state"><div style="font-size:32px">💰</div><p>No skins won yet.</p></div>`;
+    return;
+  }
+
+  // Season totals leaderboard
+  const sorted=Object.entries(skinsMap).sort((a,b)=>b[1].count-a[1].count);
+  const leaderRows=sorted.map(([n,d],i)=>{
+    const totalPayout=d.entries.reduce((s,e)=>s+e.payout,0);
+    const detail=d.entries.map(e=>`Wk${e.week} ${e.hole}`).join(' · ');
+    return`<div class="lb-row">
+      <div class="lb-rank${i<3?' top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+      <div class="lb-name">${n}</div>
+      <div class="lb-stats">
+        <div style="color:var(--green-d)">${d.count} skin${d.count!==1?'s':''} · +$${totalPayout.toFixed(2)}</div>
+        <div style="font-size:10px;color:var(--text2)">${detail}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Weekly breakdown
+  const weekRows=weeklyLog.map(wk=>{
+    const skinEntries=Object.entries(wk.skins);
+    const rows=skinEntries.map(([hole,name])=>
+      `<div class="payout-row"><span>H${hole} — ${name}</span><span class="payout-amt">+$${wk.skinPay.toFixed(2)}</span></div>`
+    ).join('');
+    return`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong>Week ${wk.week} <span class="badge badge-navy" style="font-size:10px">${wk.side==='front'?'Front':'Back'} 9</span></strong>
+        <span style="font-size:11px;color:var(--text2)">${skinEntries.length} skin${skinEntries.length!==1?'s':''} · $${(wk.skinPay*skinEntries.length).toFixed(2)} total</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+
+  el.innerHTML=`
+    <div class="card-title" style="padding:0 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">Season Totals</div>
+    <div class="card">${leaderRows||'<div style="color:var(--text2)">No skins yet</div>'}</div>
+    <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">By Week — Latest First</div>
+    ${weekRows||''}`;
+}
+
 // ── CTP LEADERBOARD ──────────────────────────────────────────
 function renderCTP(){
   const db=getDB();const yr=getYear(db);
   document.getElementById('ctp-year-pill').textContent=db.activeYear;
   const ctpMap={};
-  yr.weeks.forEach(wd=>{
+  // Sort weeks latest first so CTP entries show most recent week first
+  const sortedWeeks=[...yr.weeks].sort((a,b)=>b.week-a.week);
+  sortedWeeks.forEach(wd=>{
     Object.entries(wd.ctpWinners||{}).filter(([,v])=>v&&v!=='__HIGHER_TEE__').forEach(([hole,name])=>{
-      if(!ctpMap[name])ctpMap[name]={count:0,holes:[]};
-      ctpMap[name].count++;ctpMap[name].holes.push('H'+hole);
+      if(!ctpMap[name])ctpMap[name]={count:0,entries:[]};
+      ctpMap[name].count++;
+      ctpMap[name].entries.push({week:wd.week,hole:'H'+hole});
     });
   });
   const entries=Object.entries(ctpMap).sort((a,b)=>b[1].count-a[1].count);
   if(!entries.length){document.getElementById('ctp-list').innerHTML=`<div class="empty-state"><div style="font-size:32px">🎯</div><p>No CTP winners yet.</p></div>`;return;}
-  const rows=entries.map(([n,d],i)=>`<div class="lb-row">
-    <div class="lb-rank${i<3?' top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
-    <div class="lb-name">${n}</div>
-    <div class="lb-stats"><div style="color:var(--gold-d)">${d.count} CTP${d.count!==1?'s':''}</div><div style="font-size:10px;color:var(--text2)">${d.holes.join(', ')}</div></div>
-  </div>`).join('');
+  const rows=entries.map(([n,d],i)=>{
+    // Already sorted latest first from sortedWeeks
+    const detail=d.entries.map(e=>`Wk${e.week} ${e.hole}`).join(' · ');
+    return`<div class="lb-row">
+      <div class="lb-rank${i<3?' top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+      <div class="lb-name">${n}</div>
+      <div class="lb-stats"><div style="color:var(--gold-d)">${d.count} CTP${d.count!==1?'s':''}</div><div style="font-size:10px;color:var(--text2)">${detail}</div></div>
+    </div>`;
+  }).join('');
   document.getElementById('ctp-list').innerHTML=`<div class="card">${rows}</div>`;
 }
 
@@ -1985,17 +2090,18 @@ function showTab(t){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('s-tabs').classList.add('active');
   document.getElementById('bnav').style.display='flex';
-  ['leaderboard','history','live','ctp','admin'].forEach(x=>{
+  ['leaderboard','history','live','ctp','skins','admin'].forEach(x=>{
     document.getElementById('tab-'+x).classList.toggle('active',x===t);
     const nb=document.getElementById('nb-'+x);if(nb)nb.classList.toggle('active',x===t);
   });
-  const T={leaderboard:'Leaderboard',history:'Season History',live:'Live Scoring',ctp:'CTP Leaders',admin:'Admin Settings'};
-  const S={leaderboard:'Scores, averages & hot streaks',history:'All rounds played',live:'Live hole-by-hole · updates every 60s',ctp:'Closest to the pin leaders',admin:'Commissioner access'};
+  const T={leaderboard:'Leaderboard',history:'Season History',live:'Live Scoring',ctp:'CTP Leaders',skins:'Skins Leaders',admin:'Admin Settings'};
+  const S={leaderboard:'Scores, averages & hot streaks',history:'All rounds played',live:'Live hole-by-hole · updates every 60s',ctp:'Closest to the pin leaders',skins:'Skin winners by week',admin:'Commissioner access'};
   document.getElementById('tab-title').textContent=T[t];document.getElementById('tab-sub').textContent=S[t];
   if(t==='live'){startLiveAutoRefresh();}else{stopLiveAutoRefresh();}
   if(t==='leaderboard')renderLb();
   if(t==='history')renderHistory();
   if(t==='ctp')renderCTP();
+  if(t==='skins')renderSkins();
   if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();}
   window.scrollTo(0,0);
 }
