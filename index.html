@@ -1706,7 +1706,7 @@ function renderHistory(){
       '<td style="text-align:center;padding:2px 3px;font-size:10px;color:var(--text2)">'+parTot+'</td></tr>'+
       scRows+'</table>'+
       '<div style="font-size:10px;color:var(--text2);margin-top:4px">🟣 Eagle &nbsp; 🔵 Birdie</div></div>';
-    const onclk='toggleHistCard('+JSON.stringify(cardId)+')';
+    const onclk="toggleHistCard('" + cardId + "')";
     return '<div class="card">'+
       '<div onclick="'+onclk+'" style="cursor:pointer">'+
       '<div style="display:flex;justify-content:space-between;margin-bottom:5px">'+
