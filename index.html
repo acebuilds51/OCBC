@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.35</title>
+<title>OCBC Golf League v1.36</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -232,7 +232,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.35</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.36</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -244,7 +244,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.35</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.36</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -752,11 +752,12 @@ function getYear(db){
 function calcCurrentWeek(yr){
   // If no season start date set, fall back to manual week number
   if(!yr.seasonStartDate) return yr.currentWeek;
-  const start=new Date(yr.seasonStartDate);
+  // Parse date string manually to avoid UTC/timezone shift
+  // '2026-04-30' should always mean April 30 in local time
+  const parts=yr.seasonStartDate.split('-').map(Number);
+  const startDay=new Date(parts[0],parts[1]-1,parts[2]); // local midnight
   const now=new Date();
-  // Find the most recent Thursday (leagueDay=4)
-  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-  const startDay=new Date(start.getFullYear(),start.getMonth(),start.getDate());
+  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); // local midnight
   const diffMs=today-startDay;
   if(diffMs<0) return 1;
   const diffDays=Math.floor(diffMs/(1000*60*60*24));
@@ -2148,9 +2149,11 @@ function syncAdminUI(){
   if(calcEl){
     if(yr.seasonStartDate){
       const wk=calcCurrentWeek(yr);const side=calcCurrentSide(yr);
-      const startD=new Date(yr.seasonStartDate);
-      const daysSince=Math.floor((new Date()-startD)/(1000*60*60*24));
-      calcEl.textContent='Week '+wk+' — '+(side==='front'?'Front 9':'Back 9')+' (start: '+yr.seasonStartDate+', '+daysSince+' days ago)';
+      const sdParts=yr.seasonStartDate.split('-').map(Number);
+      const startD=new Date(sdParts[0],sdParts[1]-1,sdParts[2]);
+      const todayD=new Date();const td=new Date(todayD.getFullYear(),todayD.getMonth(),todayD.getDate());
+      const daysSince=Math.floor((td-startD)/(1000*60*60*24));
+      calcEl.textContent='Week '+wk+' — '+(side==='front'?'Front 9':'Back 9')+' (start: '+yr.seasonStartDate+', '+daysSince+' days ago, week1Side: '+(yr.week1Side||'not set')+')';
     }else{calcEl.textContent='Set start date above';}
   }
   const roEl=document.getElementById('adm-rainouts');
