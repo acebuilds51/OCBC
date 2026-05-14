@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.29</title>
+<title>OCBC Golf League v1.30</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -211,7 +211,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.29</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.30</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -223,7 +223,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.29</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.30</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -468,7 +468,8 @@ label:first-child{margin-top:0}
         <select id="adm-year" onchange="changeYear()"></select>
         <button class="btn btn-secondary" style="margin-top:8px" onclick="addNewYear()">+ Start New Year</button>
         <label style="margin-top:10px">Season Start Date (first Thursday)</label>
-        <input type="date" id="adm-start-date" onchange="saveWeekCfg()">
+        <input type="date" id="adm-start-date">
+        <button class="btn btn-navy" style="width:100%;margin-top:8px" onclick="saveSeasonSettings()">💾 Save Season Settings</button>
         <p style="font-size:11px;color:var(--text2);margin-top:4px">The app calculates the current week automatically from this date every Thursday. Week 1 = first Thursday, Week 2 = second Thursday, etc.</p>
         <label style="margin-top:10px">Week 1 Course Side</label>
         <select id="adm-side" onchange="saveWeekCfg()">
@@ -2109,6 +2110,10 @@ function renderPlayers(){
   const players=[...db.players].sort();
   el.innerHTML=players.map(p=>'<div class="player-row"><span>'+p+'</span></div>').join('');
 }
+function saveWeekCfg(){
+  saveSeasonSettings();
+}
+
 function saveSeasonSettings(){
   const db=getDB();const yr=getYear(db);
   const sd=document.getElementById('adm-start-date');if(sd&&sd.value)yr.seasonStartDate=sd.value;
