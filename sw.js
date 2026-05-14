@@ -1,6 +1,6 @@
 // OCBC Golf League Service Worker
 // Version bumped with each app release — forces cache refresh
-const CACHE_VERSION = 'ocbc-v1.37';
+const CACHE_VERSION = 'ocbc-v1.40';
 const CACHE_NAME = CACHE_VERSION;
 
 // On install — cache the app shell

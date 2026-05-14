@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.37</title>
+<title>OCBC Golf League v1.40</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -11,16 +11,14 @@
 <meta name="theme-color" content="#1a2a4a">
 <link rel="manifest" href="manifest.json">
 <script>
-// Register service worker for cache control
-if('serviceWorker' in navigator){
+// Register service worker only on GitHub Pages, not in preview/dev environments
+if('serviceWorker' in navigator && location.hostname.includes('github.io')){
   navigator.serviceWorker.register('/OCBC/sw.js').then(reg=>{
-    // Check for updates on every load
     reg.update();
     reg.addEventListener('updatefound',()=>{
       const newWorker=reg.installing;
       newWorker.addEventListener('statechange',()=>{
         if(newWorker.state==='installed'&&navigator.serviceWorker.controller){
-          // New version available — reload automatically
           navigator.serviceWorker.addEventListener('controllerchange',()=>{
             window.location.reload();
           });
@@ -232,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.37</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.40</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -244,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.37</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.40</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -489,7 +487,8 @@ label:first-child{margin-top:0}
         <select id="adm-year" onchange="changeYear()"></select>
         <button class="btn btn-secondary" style="margin-top:8px" onclick="addNewYear()">+ Start New Year</button>
         <label style="margin-top:10px">Season Start Date (first Thursday)</label>
-        <input type="date" id="adm-start-date">
+        <input type="date" id="adm-start-date" style="width:100%;padding:8px;font-size:16px;border:2px solid var(--navy);border-radius:var(--rsm)">
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">Or type directly: <input type="text" id="adm-start-date-txt" placeholder="YYYY-MM-DD e.g. 2026-04-30" style="width:160px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" onchange="syncDateInput()"></div>
         <label style="margin-top:10px">Week 1 Course Side</label>
         <select id="adm-side1" style="width:100%">
           <option value="front">Front 9</option>
@@ -882,20 +881,7 @@ async function loadFromSheet(url, year){
     if(!d.ok) throw new Error(d.error||'bad response');
     const db=getDB();
     const yr=getYear(db);
-    // Merge: sheet is source of truth for weeks
-    if(d.rounds && d.rounds.length>0){
-      yr.weeks=d.rounds;
-      // NEVER auto-advance week/side if season start date is set
-      // Date calculation handles week number automatically
-      if(!yr.seasonStartDate){
-        const lastWeek=Math.max(...d.rounds.map(w=>w.week||0));
-        if(lastWeek>=yr.currentWeek) yr.currentWeek=lastWeek+1;
-        const lastRound=d.rounds[d.rounds.length-1];
-        yr.currentSide=lastRound.side==='front'?'back':'front';
-      }
-      // If seasonStartDate is set, ONLY update currentSide from config, not from rounds
-    }
-    // Always fetch config separately — getAllRounds may return null config when no rounds
+    // Load config FIRST so seasonStartDate is set before we process rounds
     setLoadMsg('Loading settings...');
     try{
       const cr=await fetch(url+'?action=getConfig&year='+encodeURIComponent(year));
@@ -904,6 +890,17 @@ async function loadFromSheet(url, year){
     }catch(ce){}
     // Also apply config from rounds response as fallback
     if(d.config) applyConfig(db, yr, d.config);
+    // NOW merge rounds — seasonStartDate is already set so week calc works correctly
+    if(d.rounds && d.rounds.length>0){
+      yr.weeks=d.rounds;
+      // Only auto-advance if NO season start date is configured
+      if(!yr.seasonStartDate){
+        const lastWeek=Math.max(...d.rounds.map(w=>w.week||0));
+        if(lastWeek>=yr.currentWeek) yr.currentWeek=lastWeek+1;
+        const lastRound=d.rounds[d.rounds.length-1];
+        yr.currentSide=lastRound.side==='front'?'back':'front';
+      }
+    }
     saveDB(db);
     setSynced('Loaded from Google Sheets ✓');
     setLoadMsg('Season data loaded!');
@@ -2175,6 +2172,15 @@ function saveWeekCfg(){
   saveSeasonSettings();
 }
 
+function syncDateInput(){
+  // Sync manual text input to the date picker
+  const txt=document.getElementById('adm-start-date-txt');
+  const dt=document.getElementById('adm-start-date');
+  if(txt&&dt&&txt.value.match(/^\d{4}-\d{2}-\d{2}$/)){
+    dt.value=txt.value;
+  }
+}
+
 function showDiagnostics(){
   const db=getDB();const yr=getYear(db);
   const el=document.getElementById('diag-output');
@@ -2209,19 +2215,27 @@ function showDiagnostics(){
 
 function saveSeasonSettings(){
   const db=getDB();const yr=getYear(db);
-  const sd=document.getElementById('adm-start-date');if(sd&&sd.value)yr.seasonStartDate=sd.value;
-  const side1=document.getElementById('adm-side1');if(side1)yr.week1Side=side1.value;
+  const sd=document.getElementById('adm-start-date');
+  const side1=document.getElementById('adm-side1');
+  // Validate date before saving
+  if(!sd||!sd.value){
+    showToast('⚠️ Please select a start date first');
+    if(sd)sd.focus();
+    return;
+  }
+  yr.seasonStartDate=sd.value;
+  if(side1)yr.week1Side=side1.value;
   saveDB(db);syncAdminUI();renderHome();
-  showToast('Season settings saved ✓');
+  showToast('Saved: '+sd.value+' / '+(yr.week1Side||'front')+' ✓');
   // Push to Sheet so all phones pick it up on next refresh
-  if(db.sheetUrl&&yr.seasonStartDate){
+  if(db.sheetUrl){
     fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
       action:'saveConfig',
       data:{
         ['seasonStartDate_'+db.activeYear]: yr.seasonStartDate,
         ['week1Side_'+db.activeYear]: yr.week1Side||'front'
       }
-    })}).then(()=>showToast('Settings synced to all phones ✓')).catch(()=>{});
+    })}).then(()=>showToast('Synced: '+yr.seasonStartDate+' / '+yr.week1Side+' ✓')).catch(()=>{});
   }
 }
 function changeYear(){
