@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.56</title>
+<title>OCBC Golf League v1.58</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.56</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.58</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.56</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.58</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3123,7 +3123,13 @@ async function joinGroup(slot){
   // Remove from other groups/available this week
   [1,2,3,4,5,6,7,8,9].forEach(s=>{
     if(yr.weekLineup[wk][s]){
-      yr.weekLineup[wk][s].members=(yr.weekLineup[wk][s].members||[]).filter(m=>m!==n);
+      const otherGroup=yr.weekLineup[wk][s];
+      otherGroup.members=(otherGroup.members||[]).filter(m=>m!==n);
+      // If this player was captain of another slot, mark it as vacated
+      if(otherGroup.captain===n){
+        otherGroup.captainVacated=true;
+        otherGroup.captain='';
+      }
     }
   });
   if(yr.weekLineup[wk].available) yr.weekLineup[wk].available=yr.weekLineup[wk].available.filter(m=>m!==n);
@@ -3232,8 +3238,14 @@ async function saveMyStatus(){
     lineup.notPlaying=[...(lineup.notPlaying||[]),name];
     // Also remove from any tee time group
     [1,2,3,4,5,6,7,8,9].forEach(s=>{
-      if(lineup[s]&&lineup[s].captain!==name)
+      if(lineup[s]){
         lineup[s].members=(lineup[s].members||[]).filter(m=>m!==name);
+        // If captain is not playing, flag slot as vacated
+        if(lineup[s].captain===name){
+          lineup[s].captainVacated=true;
+          lineup[s].captain='';
+        }
+      }
     });
   } else if(type==='player_looking'){
     lineup.playersLooking=[...(lineup.playersLooking||[]),name];
@@ -3337,9 +3349,11 @@ async function fetchLineupFromSheet(wk){
       try{
         const ll=typeof d.config[key]==='string'?JSON.parse(d.config[key]):d.config[key];
         if(!yr.weekLineup)yr.weekLineup={};
-        yr.weekLineup[wk]=ll;
-        // Apply full config so seasonStartDate, week1Side etc all get saved
+        // Apply full config FIRST so seasonStartDate is set correctly
         applyConfig(db, yr, d.config);
+        // Now recalculate wk with correct seasonStartDate
+        const correctWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+        yr.weekLineup[correctWk]=ll;
         saveDB(db);
         // Re-render with fresh data
         renderThisWeekDisplay();
@@ -3401,7 +3415,13 @@ async function saveSlotFoursome(slot){
   players.forEach(name=>{
     [1,2,3,4,5,6,7,8,9].forEach(s=>{
       if(s!==slot&&yr.weekLineup[wk][s]){
-        yr.weekLineup[wk][s].members=(yr.weekLineup[wk][s].members||[]).filter(m=>m!==name);
+        const otherGroup=yr.weekLineup[wk][s];
+        otherGroup.members=(otherGroup.members||[]).filter(m=>m!==name);
+        // If this player was captain of another slot, mark that slot as needing a captain
+        if(otherGroup.captain===name){
+          otherGroup.captainVacated=true;
+          otherGroup.captain=''; // clear captain
+        }
       }
     });
     // Remove from status lists
@@ -3410,6 +3430,7 @@ async function saveSlotFoursome(slot){
     yr.weekLineup[wk].teamsLooking=(yr.weekLineup[wk].teamsLooking||[]).filter(t=>t.p1!==name&&t.p2!==name);
   });
   group.members=players;
+  group.captainVacated=false;
   // First player becomes captain if no captain set
   if(!group.captain) group.captain=players[0];
   saveDB(db);
@@ -3456,6 +3477,7 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     const members=(group.members||[]);
     const teeStr=getTeeTimeStr(slot);
     const isEmpty=!captain&&!members.length;
+    const captainVacated=group.captainVacated&&!captain;
 
     const memberList=members.map(m=>{
       const isCap=m===captain;
@@ -3475,7 +3497,9 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
           <span class="tee-badge">${slot}</span>
           <div>
             <div style="font-weight:700;font-size:13px">${teeStr}</div>
-            <div style="font-size:11px;color:var(--text2)">${isEmpty?'No captain assigned yet':''}</div>
+            <div style="font-size:11px;color:${captainVacated?'var(--red)':'var(--text2)'}">
+              ${captainVacated?'⚠️ Captain gave up slot — needs new captain':isEmpty?'No captain assigned yet':''}
+            </div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
