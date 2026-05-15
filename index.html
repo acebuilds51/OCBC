@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.43</title>
+<title>OCBC Golf League v1.44</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.43</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.44</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.43</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.44</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -1560,7 +1560,7 @@ function renderLiveScoring(liveGroups, completedRounds){
       }).join('');
 
       return`<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:3px 4px;font-size:12px;font-weight:600;white-space:nowrap">${pl.name}${pl.isSub?'*':''}</td>
+        <td style="padding:3px 4px;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pl.name}${pl.isSub?'*':''}</td>
         ${cells}
         <td style="text-align:center;padding:3px 4px;font-size:12px;font-weight:700">${tot||'-'}</td>
         <td style="text-align:right;padding:3px 4px;font-size:11px;color:${diffColor}">${diffStr}</td>
@@ -1580,17 +1580,23 @@ function renderLiveScoring(liveGroups, completedRounds){
         ${statusBadge}
       </div>
       <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed">
+          <colgroup>
+            <col style="width:90px">
+            ${holes.map(()=>'<col style="width:36px">').join('')}
+            <col style="width:36px">
+            <col style="width:36px">
+          </colgroup>
           <tr style="background:var(--navy-l)">
             <th style="text-align:left;padding:2px 4px;color:var(--navy);font-size:10px">Player</th>
-            ${holes.map(h=>`<th style="text-align:center;padding:2px 2px;color:var(--navy);font-size:10px">H${h.n}<br><span style="font-weight:400;color:var(--text2)">${h.p}</span></th>`).join('')}
-            <th style="text-align:center;padding:2px 4px;color:var(--navy);font-size:10px">Tot</th>
-            <th style="text-align:right;padding:2px 4px;color:var(--navy);font-size:10px">+/-</th>
+            ${holes.map(h=>`<th style="text-align:center;padding:2px 1px;color:var(--navy);font-size:10px">H${h.n}<br><span style="font-weight:400;color:var(--text2)">${h.p}</span></th>`).join('')}
+            <th style="text-align:center;padding:2px 2px;color:var(--navy);font-size:10px">Tot</th>
+            <th style="text-align:right;padding:2px 2px;color:var(--navy);font-size:10px">+/-</th>
           </tr>
           <tr style="background:var(--bg)">
             <td style="padding:2px 4px;font-size:10px;color:var(--text2)">Par</td>
-            ${holes.map(h=>`<td style="text-align:center;padding:2px 2px;font-size:10px;color:var(--text2)">${h.p}</td>`).join('')}
-            <td style="text-align:center;padding:2px 4px;font-size:10px;color:var(--text2)">${parTot}</td>
+            ${holes.map(h=>`<td style="text-align:center;padding:2px 1px;font-size:10px;color:var(--text2)">${h.p}</td>`).join('')}
+            <td style="text-align:center;padding:2px 2px;font-size:10px;color:var(--text2)">${parTot}</td>
             <td></td>
           </tr>
           ${playerRows}
