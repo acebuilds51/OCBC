@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.44</title>
+<title>OCBC Golf League v1.45</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.44</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.45</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.44</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.45</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -1664,18 +1664,24 @@ function calcLeagueWideSkinsCTP(db,yr,wk,side){
     if(bestName)leagueCTP[h.n]=bestName;
   });
 
-  // Apply skins+CTP money to each round
+  // Apply skins+CTP results to each round
+  // Store separately as skinsMoney/ctpMoney to prevent double-counting on re-settle
   weekRounds.forEach(wd=>{
     wd.skins=leagueSkins;
     wd.skinPay=skinPay;
     wd.ctpPay=ctpPay;
     wd.leagueCTP=leagueCTP;
     wd.skinsSettled=true;
-    Object.values(leagueSkins).forEach(name=>{
-      if(wd.money[name]!==undefined)wd.money[name]+=skinPay;
-    });
-    Object.values(leagueCTP).forEach(name=>{
-      if(wd.money[name]!==undefined)wd.money[name]+=ctpPay;
+    // Reset separate money buckets
+    wd.skinsMoney={};
+    wd.ctpMoney={};
+    // Only assign to players IN this round
+    wd.players.forEach(pl=>{
+      const n=pl.name;
+      const skinWins=Object.values(leagueSkins).filter(w=>w===n).length;
+      const ctpWins=Object.values(leagueCTP).filter(w=>w===n).length;
+      if(skinWins>0) wd.skinsMoney[n]=skinWins*skinPay;
+      if(ctpWins>0) wd.ctpMoney[n]=ctpWins*ctpPay;
     });
   });
 
@@ -1773,8 +1779,12 @@ function buildStats(yr_data){
     wd.players.forEach((pl,i)=>{
       const n=pl.name;
       if(!stats[n])stats[n]={money:0,scores:[],wins:0,skins:0,ctps:0,pressWins:0,isSub:pl.isSub};
-      stats[n].scores.push({week:wd.week,score:wd.scores.reduce((s,sc)=>s+(sc['p'+i]||0),0)});
-      stats[n].money+=(wd.money[n]||0); // includes skins/CTP after settlement
+      stats[n].scores.push({week:wd.week,score:wd.scores.reduce((s,sc)=>s+(sc['p'+i]<99?sc['p'+i]:0),0)});
+      // Base match money (excludes skins/CTP which are stored separately)
+      const baseMoney=wd.money[n]||0;
+      const skinMoney=(wd.skinsMoney&&wd.skinsMoney[n])||0;
+      const ctpMoney=(wd.ctpMoney&&wd.ctpMoney[n])||0;
+      stats[n].money+=(baseMoney+skinMoney+ctpMoney);
     });
     const wt=wd.matchWinner;
     if(wt){[wt==='A'?0:2,wt==='A'?1:3].forEach(i=>{const n=wd.players[i].name;if(stats[n])stats[n].wins++;});}
