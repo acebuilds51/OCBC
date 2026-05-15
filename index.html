@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.50</title>
+<title>OCBC Golf League v1.51</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.50</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.51</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.50</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.51</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3228,6 +3228,37 @@ async function syncLineup(wk){
   }catch(e){}
 }
 
+async function fetchLineupFromSheet(wk){
+  const db=getDB();const yr=getYear(db);
+  if(!db.sheetUrl)return;
+  try{
+    const r=await fetch(db.sheetUrl+'?action=getConfig&year='+encodeURIComponent(db.activeYear));
+    const d=await r.json();
+    if(!d.ok||!d.config)return;
+    const key='weekLineup_'+db.activeYear+'_wk'+wk;
+    if(d.config[key]){
+      try{
+        const ll=typeof d.config[key]==='string'?JSON.parse(d.config[key]):d.config[key];
+        if(!yr.weekLineup)yr.weekLineup={};
+        yr.weekLineup[wk]=ll;
+        saveDB(db);
+        // Re-render with fresh data
+        renderThisWeekDisplay();
+      }catch(e){}
+    }
+  }catch(e){}
+}
+
+function renderThisWeekDisplay(){
+  // Inner render called after Sheet fetch completes
+  const db=getDB();const yr=getYear(db);
+  const el=document.getElementById('thisweek-list');
+  if(!el)return;
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  _renderThisWeekInner(db,yr,wk,lineup,el);
+}
+
 function toggleSlotEdit(slot){
   const db=getDB();const yr=getYear(db);
   const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
@@ -3310,7 +3341,13 @@ function renderThisWeek(){
   const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
   const sub=document.getElementById('thisweek-sub');
   if(sub)sub.textContent='Week '+wk+' · Thursday';
+  // Always fetch fresh lineup from Sheet when tab opens
+  if(db.sheetUrl) fetchLineupFromSheet(wk);
   const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  _renderThisWeekInner(db,yr,wk,lineup,el);
+}
+
+function _renderThisWeekInner(db,yr,wk,lineup,el){
   const available=lineup.available||[];
 
   const slots=[1,2,3,4,5,6,7,8,9].map(slot=>{
