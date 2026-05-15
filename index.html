@@ -805,7 +805,14 @@ const HOLES={
 };
 
 // ── DB ───────────────────────────────────────────────────────
-function getDB(){try{return JSON.parse(localStorage.getItem('ocbcgl4')||'null')||mkDB();}catch(e){return mkDB();}}
+function getDB(){
+  try{
+    const db=JSON.parse(localStorage.getItem('ocbcgl4')||'null')||mkDB();
+    // Always override with hardcoded URL so all phones stay in sync
+    if(SHEET_URL) db.sheetUrl=SHEET_URL;
+    return db;
+  }catch(e){return mkDB();}
+}
 function saveDB(db){localStorage.setItem('ocbcgl4',JSON.stringify(db));}
 function mkDB(){
   const yr=new Date().getFullYear().toString();
@@ -867,6 +874,9 @@ function isRainoutWeek(yr){
 }
 
 // ── STATE ────────────────────────────────────────────────────
+// ── HARDCODED SHEET URL — update this when Apps Script is redeployed ──
+const SHEET_URL='https://script.google.com/macros/s/AKfycby8GAg8ma6k5aY2oHYKbHPf3jZCgrBA3dQVB9Tv_eT3h1EBo-kPbirIQHfdMEapHzRkOA/exec';
+
 let ST={players:[],p5:null,holeIdx:0,scores:[],ctpWinners:{},p5scores:[],presses:[],awins:0,bwins:0};
 
 function saveSTProgress(){
@@ -3301,6 +3311,14 @@ async function debugLineup(){
     }
   }catch(e){
     el.innerHTML+='<br><b>FETCH ERROR: '+e.message+'</b>';
+  }
+  // Also test write capability
+  try{
+    const wr=await fetch(db.sheetUrl+'?action=testWrite');
+    const wd2=await wr.json();
+    el.innerHTML+='<br><br><b>Write test:</b> '+(wd2.ok?'✅ '+wd2.message:'❌ '+wd2.error);
+  }catch(e){
+    el.innerHTML+='<br><b>Write test failed: '+e.message+'</b>';
   }
 }
 
