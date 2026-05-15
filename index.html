@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.64</title>
+<title>OCBC Golf League v1.65</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.64</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.65</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.64</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.65</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3423,136 +3423,113 @@ function renderThisWeek(){
 }
 
 function _renderThisWeekInner(db,yr,wk,lineup,el){
-  try{
-  // Safety checks
-  if(!el){console.error('thisweek-list element not found');return;}
-  if(!lineup){lineup={};}
-  const available=lineup.available||[];
+  var html = '';
+  var players = (db && db.players) ? db.players : [];
 
-  const slots=[1,2,3,4,5,6,7,8,9].map(slot=>{
-    const group=lineup[slot]||{};
-    const captain=group.captain||'';
-    const members=(group.members||[]);
-    const teeStr=getTeeTimeStr(slot);
-    const isEmpty=!captain&&!members.length;
-    const captainVacated=group.captainVacated&&!captain;
+  // Header
+  html += '<div style="font-size:13px;font-weight:700;color:var(--navy);padding:8px 0 4px">Week '+wk+' Tee Times — Thursdays from 5:10pm</div>';
 
-    const memberList=members.map(m=>{
-      const isCap=m===captain;
-      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:13px">${m}${isCap?' <span style="font-size:10px;background:var(--navy);color:#fff;padding:1px 5px;border-radius:10px">Captain</span>':''}</div>
-        ${!isCap?`<button onclick="leaveGroup(${slot})" style="font-size:10px;color:var(--text2);background:none;border:none;cursor:pointer">✕ Leave</button>`:''}
-      </div>`;
-    }).join('');
+  // 9 tee time slots
+  for(var slot=1;slot<=9;slot++){
+    var mins = (slot-1)*7;
+    var totalMins = 17*60+10+mins;
+    var h = Math.floor(totalMins/60);
+    var m = totalMins%60;
+    var teeStr = (h>12?h-12:h)+':'+(m<10?'0':'')+m+'pm';
+    var group = (lineup && lineup[slot]) ? lineup[slot] : {};
+    var captain = group.captain || '';
+    var members = group.members || [];
+    var vacated = group.captainVacated && !captain;
 
-    const openSpots=4-members.length;
-    const spotsStr=openSpots>0?`<span style="font-size:11px;color:var(--text2)">${openSpots} spot${openSpots!==1?'s':''} open</span>`:'<span style="font-size:11px;color:var(--green-d)">Full</span>';
+    html += '<div class="card" style="margin-bottom:8px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+    html += '<div style="display:flex;align-items:center;gap:8px">';
+    html += '<span class="tee-badge">'+slot+'</span>';
+    html += '<div><div style="font-weight:700;font-size:13px">'+teeStr+'</div>';
+    if(vacated) html += '<div style="font-size:11px;color:var(--red)">⚠️ Captain vacated slot</div>';
+    else if(!captain) html += '<div style="font-size:11px;color:var(--text2)">No captain assigned</div>';
+    html += '</div></div>';
+    var open = 4 - members.length;
+    if(open > 0) html += '<span style="font-size:11px;color:var(--text2)">'+open+' spot'+(open!==1?'s':'')+' open</span>';
+    else html += '<span style="font-size:11px;color:var(--green-d)">Full</span>';
+    html += '</div>';
 
-    const editId=`tw-edit-${slot}`;
-    return`<div class="card" style="margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="tee-badge">${slot}</span>
-          <div>
-            <div style="font-weight:700;font-size:13px">${teeStr}</div>
-            <div style="font-size:11px;color:${captainVacated?'var(--red)':'var(--text2)'}">
-              ${captainVacated?'⚠️ Captain gave up slot — needs new captain':isEmpty?'No captain assigned yet':''}
-            </div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          ${spotsStr}
-          <button onclick="toggleSlotEdit(${slot})" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:20px;background:var(--white);cursor:pointer;color:var(--navy)">✏️ Edit</button>
-        </div>
-      </div>
-      ${memberList||`<div style="font-size:12px;color:var(--text2);padding:6px 0">No players yet</div>`}
-      <!-- Inline edit panel -->
-      <div id="${editId}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:8px">Set Foursome for Tee Time ${slot}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
-          <div>
-            <div style="font-size:10px;color:var(--text2);margin-bottom:2px">Team A — Player 1</div>
-            <select id="tw-${slot}-p1" style="width:100%;font-size:12px"><option value="">-- Select --</option></select>
-          </div>
-          <div>
-            <div style="font-size:10px;color:var(--text2);margin-bottom:2px">Team A — Player 2</div>
-            <select id="tw-${slot}-p2" style="width:100%;font-size:12px"><option value="">-- Select --</option></select>
-          </div>
-          <div>
-            <div style="font-size:10px;color:var(--text2);margin-bottom:2px">Team B — Player 3</div>
-            <select id="tw-${slot}-p3" style="width:100%;font-size:12px"><option value="">-- Select --</option></select>
-          </div>
-          <div>
-            <div style="font-size:10px;color:var(--text2);margin-bottom:2px">Team B — Player 4</div>
-            <select id="tw-${slot}-p4" style="width:100%;font-size:12px"><option value="">-- Select --</option></select>
-          </div>
-        </div>
-        <div style="display:flex;gap:6px">
-          <button onclick="saveSlotFoursome(${slot})" style="flex:1;padding:8px;background:var(--navy);color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">✓ Save Foursome</button>
-          <button onclick="clearSlotFoursome(${slot})" style="padding:8px 12px;background:var(--red-l);color:var(--red);border:1px solid var(--red);border-radius:var(--rsm);font-size:12px;cursor:pointer">Clear</button>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
+    if(members.length > 0){
+      html += '<div style="margin-top:8px">';
+      for(var mi=0;mi<members.length;mi++){
+        var m2 = members[mi];
+        var isCap = m2===captain;
+        html += '<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:13px">'+m2;
+        if(isCap) html += ' <span style="font-size:10px;background:var(--navy);color:#fff;padding:1px 5px;border-radius:10px">Captain</span>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
 
-  // Teams looking for a match
-  const teamsLooking=lineup.teamsLooking||[];
-  const teamsSection=teamsLooking.length?`
-    <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">👥 Teams Looking for a Match</div>
-    <div class="card">
-      ${teamsLooking.map(t=>`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:13px;font-weight:600">${t.p1} &amp; ${t.p2}</div>
-        <div style="font-size:11px;color:var(--text2)">Looking for opponents</div>
-      </div>`).join('')}
-    </div>`:
-    '';
+    if(open > 0){
+      html += '<button onclick="joinGroup('+slot+')" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join This Group</button>';
+    }
+    html += '</div>';
+  }
 
-  // Players looking for a partner
-  const playersLooking=lineup.playersLooking||[];
-  const playersSection=playersLooking.length?`
-    <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">🙋 Players Looking for a Partner &amp; Match</div>
-    <div class="card">
-      ${playersLooking.map(n=>`<div style="padding:6px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:13px">${n}</span>
-      </div>`).join('')}
-    </div>`:
-    '';
+  // Teams looking
+  var teams = (lineup && lineup.teamsLooking) ? lineup.teamsLooking : [];
+  if(teams.length > 0){
+    html += '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;padding:8px 0 4px">👥 Teams Looking for a Match</div>';
+    html += '<div class="card">';
+    for(var ti=0;ti<teams.length;ti++){
+      html += '<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-weight:600">'+teams[ti].p1+' &amp; '+teams[ti].p2+'</div><div style="font-size:11px;color:var(--text2)">Looking for opponents</div></div>';
+    }
+    html += '</div>';
+  }
+
+  // Players looking
+  var looking = (lineup && lineup.playersLooking) ? lineup.playersLooking : [];
+  if(looking.length > 0){
+    html += '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;padding:8px 0 4px">🙋 Players Looking for a Partner</div>';
+    html += '<div class="card">';
+    for(var li=0;li<looking.length;li++){
+      html += '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">'+looking[li]+'</div>';
+    }
+    html += '</div>';
+  }
 
   // Not playing
-  const notPlaying=lineup.notPlaying||[];
-  const notPlayingSection=notPlaying.length?`
-    <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">❌ Not Playing This Week</div>
-    <div class="card">
-      ${notPlaying.map(n=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2)">${n}</div>`).join('')}
-    </div>`:
-    '';
-
-  // No response yet — everyone not accounted for
-  const accounted=new Set();
-  // In a tee time slot
-  [1,2,3,4,5,6,7,8,9].forEach(s=>{
-    (lineup[s]?.members||[]).forEach(n=>accounted.add(n));
-  });
-  // In a status
-  (lineup.teamsLooking||[]).forEach(t=>{accounted.add(t.p1);accounted.add(t.p2);});
-  (lineup.playersLooking||[]).forEach(n=>accounted.add(n));
-  (lineup.notPlaying||[]).forEach(n=>accounted.add(n));
-  const noResponse=((db&&db.players)||[]).filter(n=>!accounted.has(n)).sort();
-  const noResponseSection=noResponse.length?`
-    <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">⏳ No Response Yet (${noResponse.length})</div>
-    <div class="card">
-      ${noResponse.map(n=>`<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2)">${n}</div>`).join('')}
-    </div>`:'';
-
-  el.innerHTML=slots+teamsSection+playersSection+notPlayingSection+noResponseSection;
-  }catch(err){
-    console.error('_renderThisWeekInner error:',err.message,err.stack);
-    el.innerHTML='<div style="color:var(--red);padding:16px;font-size:13px;font-weight:600">⚠️ '+err.message+'</div>';
+  var notPlaying = (lineup && lineup.notPlaying) ? lineup.notPlaying : [];
+  if(notPlaying.length > 0){
+    html += '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;padding:8px 0 4px">❌ Not Playing This Week</div>';
+    html += '<div class="card">';
+    for(var ni=0;ni<notPlaying.length;ni++){
+      html += '<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2)">'+notPlaying[ni]+'</div>';
+    }
+    html += '</div>';
   }
+
+  // No response
+  var accounted = {};
+  for(var s=1;s<=9;s++){
+    var grp = (lineup && lineup[s]) ? lineup[s] : {};
+    var mbs = grp.members || [];
+    for(var mi2=0;mi2<mbs.length;mi2++) accounted[mbs[mi2]]=1;
+  }
+  for(var ti2=0;ti2<teams.length;ti2++){accounted[teams[ti2].p1]=1;accounted[teams[ti2].p2]=1;}
+  for(var li2=0;li2<looking.length;li2++) accounted[looking[li2]]=1;
+  for(var ni2=0;ni2<notPlaying.length;ni2++) accounted[notPlaying[ni2]]=1;
+  var noResp = [];
+  for(var pi=0;pi<players.length;pi++){if(!accounted[players[pi]])noResp.push(players[pi]);}
+  if(noResp.length > 0){
+    html += '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;padding:8px 0 4px">⏳ No Response Yet ('+noResp.length+')</div>';
+    html += '<div class="card">';
+    for(var ri=0;ri<noResp.length;ri++){
+      html += '<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2)">'+noResp[ri]+'</div>';
+    }
+    html += '</div>';
+  }
+
+  el.innerHTML = html;
 }
 
 
 </script>
-
 </body>
 </html>
