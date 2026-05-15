@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.60</title>
+<title>OCBC Golf League v1.61</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.60</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.61</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.60</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.61</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -2863,24 +2863,10 @@ function renderAdminSkinsLb(){
     return'<div class="lb-row"><div class="lb-rank'+(i<3?' top':'')+'">'+(i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1)+'</div><div class="lb-name">'+n+'</div><div class="lb-stats"><div style="color:var(--green-d)">'+d.count+' skin'+(d.count!==1?'s':'')+' · +$'+d.payout.toFixed(2)+'</div><div style="font-size:10px;color:var(--text2)">'+d.entries.join(' · ')+'</div></div></div>';
   }).join('')+'</div>';
 }
-</script>
-<!-- LIVE PEEK PANEL -->
-<div id="live-peek-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:1000;overflow-y:auto" onclick="if(event.target===this)hideLivePeek()">
-  <div style="background:var(--white);margin:50px 12px 20px;border-radius:12px;overflow:hidden;max-width:520px;margin-left:auto;margin-right:auto">
-    <div style="background:var(--navy);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-weight:700;font-size:15px">📊 Live Scores</div>
-        <div style="font-size:11px;opacity:.7">Tap outside or Close to resume your round</div>
-      </div>
-      <button onclick="hideLivePeek()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:20px;padding:6px 14px;cursor:pointer;font-size:13px">Close</button>
-    </div>
-    <div id="live-peek-content" style="padding:12px"></div>
-  </div>
-</div>
 
-<!-- SAVE ST progress on adj -->
 
-<script>
+// ── THIS WEEK (moved from separate script block) ──────────────
+
 // ── EDIT SUBMITTED SCORES ─────────────────────────────────────
 function initEditRound(){
   const db=getDB();const yr=getYear(db);
@@ -3595,6 +3581,8 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
   }
 }
 
+
 </script>
+
 </body>
 </html>
