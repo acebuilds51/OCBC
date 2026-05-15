@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.59</title>
+<title>OCBC Golf League v1.60</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.59</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.60</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.59</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.60</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3470,6 +3470,7 @@ function renderThisWeek(){
 }
 
 function _renderThisWeekInner(db,yr,wk,lineup,el){
+  try{
   const available=lineup.available||[];
 
   const slots=[1,2,3,4,5,6,7,8,9].map(slot=>{
@@ -3580,7 +3581,7 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
   (lineup.teamsLooking||[]).forEach(t=>{accounted.add(t.p1);accounted.add(t.p2);});
   (lineup.playersLooking||[]).forEach(n=>accounted.add(n));
   (lineup.notPlaying||[]).forEach(n=>accounted.add(n));
-  const noResponse=db.players.filter(n=>!accounted.has(n)).sort();
+  const noResponse=(db.players||[]).filter(n=>!accounted.has(n)).sort();
   const noResponseSection=noResponse.length?`
     <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">⏳ No Response Yet (${noResponse.length})</div>
     <div class="card">
@@ -3588,6 +3589,10 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     </div>`:'';
 
   el.innerHTML=slots+teamsSection+playersSection+notPlayingSection+noResponseSection;
+  }catch(err){
+    el.innerHTML='<div style="color:var(--red);padding:20px;font-size:12px">Render error: '+err.message+'</div>';
+    console.error('_renderThisWeekInner error:',err);
+  }
 }
 
 </script>
