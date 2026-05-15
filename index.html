@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.46</title>
+<title>OCBC Golf League v1.49</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.46</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.49</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.46</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.49</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -259,6 +259,7 @@ label:first-child{margin-top:0}
     <button class="btn btn-green" onclick="goToScoring()" style="padding:11px;font-size:15px">▶ Enter Foursome Scores</button>
     <button class:10px;font-size:14px" onclick="showTab('leaderboard')">📊 Leaderboard &amp; Averages</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('history')">📅 Season History</button>
+    <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('thisweek')">📅 This Week's Lineup</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('ctp')">🎯 CTP Leaderboard</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('skins')">💰 Skins Leaderboard</button>
 
@@ -425,6 +426,48 @@ label:first-child{margin-top:0}
       <span id="ctp-year-pill" class="year-pill"></span>
     </div>
     <div class="section" id="ctp-list"></div>
+  </div>
+
+  <!-- THIS WEEK TAB -->
+  <div id="tab-thisweek" class="tab-content">
+    <div style="padding:9px 15px 0;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <span style="font-size:13px;font-weight:600">This Week's Lineup</span>
+        <div style="font-size:11px;color:var(--text2)" id="thisweek-sub">Tee times &amp; groups</div>
+      </div>
+      <span id="thisweek-year-pill" class="year-pill"></span>
+    </div>
+    <!-- Action buttons -->
+    <div style="padding:8px 15px 0;display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn-secondary" style="font-size:13px;text-align:left;padding:10px 14px" onclick="showStatusPicker()">📋 Update My Status for This Week</button>
+    </div>
+    <div id="status-picker" style="display:none;margin:8px 15px 0;background:var(--white);border:1px solid var(--border);border-radius:var(--rsm);padding:12px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">My Status This Week</div>
+      <label style="font-size:12px;color:var(--text2)">My Name</label>
+      <select id="status-my-name" style="width:100%;margin-bottom:10px" onchange="onStatusNameChange()">
+        <option value="">-- Select your name --</option>
+      </select>
+      <label style="font-size:12px;color:var(--text2)">My Status</label>
+      <select id="status-type" style="width:100%;margin-bottom:10px" onchange="onStatusTypeChange()">
+        <option value="">-- Select status --</option>
+        <option value="team_looking">👥 My partner &amp; I are looking for a match</option>
+        <option value="player_looking">🙋 I'm looking for a partner &amp; match</option>
+        <option value="not_playing">❌ Not playing this week</option>
+      </select>
+      <!-- Partner select (for team_looking) -->
+      <div id="partner-row" style="display:none">
+        <label style="font-size:12px;color:var(--text2)">My Partner</label>
+        <select id="status-partner" style="width:100%;margin-bottom:10px">
+          <option value="">-- Select partner --</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-navy" style="flex:1" onclick="saveMyStatus()">✓ Save Status</button>
+        <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('status-picker').style.display='none'">Cancel</button>
+      </div>
+      <div id="status-save-msg" style="margin-top:6px;font-size:12px;color:var(--green-d)"></div>
+    </div>
+    <div class="section" id="thisweek-list"></div>
   </div>
 
   <!-- SKINS TAB — current week only, public -->
@@ -652,6 +695,14 @@ label:first-child{margin-top:0}
       </div>
 
       <div class="card">
+        <div class="card-title">📅 Set This Week's Tee Time Captains</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter the 9 assigned captains for the upcoming week. Tee times start at 5:10pm, every 7 minutes.</p>
+        <div id="captain-entry-rows"></div>
+        <button class="btn btn-navy" style="width:100%;margin-top:10px" onclick="saveCaptains()">📅 Save & Publish Lineup</button>
+        <div id="captain-save-status" style="margin-top:6px;font-size:12px;color:var(--green-d)"></div>
+      </div>
+
+      <div class="card">
         <div class="card-title">💰 Season Money Leaderboard</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Visible to commissioner only.</p>
         <div id="admin-money-lb"></div>
@@ -686,6 +737,10 @@ label:first-child{margin-top:0}
   <button class="bnav-btn" id="nb-leaderboard" onclick="showTab('leaderboard')">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     <span>Standings</span>
+  </button>
+  <button class="bnav-btn" id="nb-thisweek" onclick="showTab('thisweek')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span>This Week</span>
   </button>
   <button class="bnav-btn" id="nb-history" onclick="showTab('history')">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -969,6 +1024,16 @@ function applyConfig(db, yr, cfg){
     try{
       const rl=typeof cfg[rainoutKey]==='string'?JSON.parse(cfg[rainoutKey]):cfg[rainoutKey];
       if(Array.isArray(rl)) yr.rainouts=rl;
+    }catch(e){}
+  }
+  // Weekly lineup (captains + members)
+  const wk2=calcCurrentWeek(yr);
+  const lineupKey='weekLineup_'+db.activeYear+'_wk'+wk2;
+  if(cfg[lineupKey]){
+    try{
+      const ll=typeof cfg[lineupKey]==='string'?JSON.parse(cfg[lineupKey]):cfg[lineupKey];
+      if(!yr.weekLineup)yr.weekLineup={};
+      yr.weekLineup[wk2]=ll;
     }catch(e){}
   }
 }
@@ -1889,12 +1954,12 @@ function showTab(t){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('s-tabs').classList.add('active');
   document.getElementById('bnav').style.display='flex';
-  ['leaderboard','history','live','ctp','skins','admin'].forEach(x=>{
+  ['leaderboard','history','live','ctp','skins','thisweek','admin'].forEach(x=>{
     document.getElementById('tab-'+x).classList.toggle('active',x===t);
     const nb=document.getElementById('nb-'+x);if(nb)nb.classList.toggle('active',x===t);
   });
-  const T={leaderboard:'Leaderboard',history:'Season History',live:'Live Scoring',ctp:'CTP Leaders',skins:'Skins Leaders',admin:'Admin Settings'};
-  const S={leaderboard:'Scores, averages & hot streaks',history:'All rounds played',live:'Live hole-by-hole · updates every 60s',ctp:'Closest to the pin leaders',skins:'Skin winners by week',admin:'Commissioner access'};
+  const T={leaderboard:'Leaderboard',history:'Season History',live:'Live Scoring',ctp:'CTP Leaders',skins:'Skins Leaders',thisweek:'This Week',admin:'Admin Settings'};
+  const S={leaderboard:'Scores, averages & hot streaks',history:'All rounds played',live:'Live hole-by-hole · updates every 60s',ctp:'Closest to the pin leaders',skins:'Skin winners by week',thisweek:'Tee times & groups for this Thursday',admin:'Commissioner access'};
   document.getElementById('tab-title').textContent=T[t];
   document.getElementById('tab-sub').textContent=S[t];
   if(t==='live'){startLiveAutoRefresh();}else{stopLiveAutoRefresh();}
@@ -1902,7 +1967,7 @@ function showTab(t){
   if(t==='history')renderHistory();
   if(t==='ctp')renderCTP();
   if(t==='skins')renderSkins();
-  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();initSettleWeekSel();initClearLiveWeekSel();}
+  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();initSettleWeekSel();initClearLiveWeekSel();initCaptainEntry();}
   window.scrollTo(0,0);
 }
 function hideBnav(){document.getElementById('bnav').style.display='none';}
@@ -2924,6 +2989,428 @@ async function saveEditedRound(){
     showToast('Could not find round to update');
   }
 }
+
+
+// ── THIS WEEK LINEUP ──────────────────────────────────────────
+function getTeeTimeStr(slot){
+  // Slot 1 = 5:10pm, each +7 mins
+  const base=17*60+10; // 5:10pm in minutes
+  const total=base+(slot-1)*7;
+  const h=Math.floor(total/60);
+  const m=total%60;
+  const ampm=h>=12?'pm':'am';
+  const h12=h>12?h-12:h;
+  return h12+':'+(m<10?'0':'')+m+ampm;
+}
+
+function initCaptainEntry(){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const el=document.getElementById('captain-entry-rows');
+  if(!el)return;
+  // Load existing lineup for this week
+  const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  const rows=[1,2,3,4,5,6,7,8,9].map(slot=>{
+    const existing=lineup[slot]||{};
+    const opts='<option value="">-- Select Captain --</option>'+
+      [...db.players].sort().map(p=>`<option value="${p}"${existing.captain===p?' selected':''}>${p}</option>`).join('');
+    return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <div style="min-width:70px;font-size:12px;font-weight:600;color:var(--navy)">T${slot} ${getTeeTimeStr(slot)}</div>
+      <select id="cap-slot-${slot}" style="flex:1;font-size:12px">${opts}</select>
+    </div>`;
+  }).join('');
+  el.innerHTML=rows;
+}
+
+async function saveCaptains(){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  if(!yr.weekLineup)yr.weekLineup={};
+  if(!yr.weekLineup[wk])yr.weekLineup[wk]={};
+  [1,2,3,4,5,6,7,8,9].forEach(slot=>{
+    const sel=document.getElementById('cap-slot-'+slot);
+    if(sel){
+      const cap=sel.value;
+      if(!yr.weekLineup[wk][slot])yr.weekLineup[wk][slot]={members:[],available:[]};
+      yr.weekLineup[wk][slot].captain=cap;
+      // Keep existing members but update captain slot
+      if(cap&&!yr.weekLineup[wk][slot].members.includes(cap)){
+        yr.weekLineup[wk][slot].members=[cap,...yr.weekLineup[wk][slot].members.filter(m=>m!==cap)];
+      }
+    }
+  });
+  saveDB(db);
+  const statusEl=document.getElementById('captain-save-status');
+  // Push to Sheet
+  if(db.sheetUrl){
+    try{
+      await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
+        action:'saveConfig',
+        data:{['weekLineup_'+db.activeYear+'_wk'+wk]:JSON.stringify(yr.weekLineup[wk])}
+      })});
+      if(statusEl)statusEl.textContent='✓ Lineup published for Week '+wk;
+      showToast('Lineup published ✓');
+    }catch(e){
+      if(statusEl)statusEl.textContent='Saved locally — sheet unreachable';
+    }
+  } else {
+    if(statusEl)statusEl.textContent='✓ Saved locally (no sheet connected)';
+  }
+  renderThisWeek();
+}
+
+async function joinGroup(slot){
+  // Ask player their name
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const name=prompt('Enter your name to join Tee Time '+slot+':');
+  if(!name||!name.trim())return;
+  const n=name.trim();
+  if(!yr.weekLineup)yr.weekLineup={};
+  if(!yr.weekLineup[wk])yr.weekLineup[wk]={};
+  if(!yr.weekLineup[wk][slot])yr.weekLineup[wk][slot]={members:[],captain:''};
+  const group=yr.weekLineup[wk][slot];
+  if(group.members.includes(n)){showToast('You are already in this group');return;}
+  // Remove from other groups/available this week
+  [1,2,3,4,5,6,7,8,9].forEach(s=>{
+    if(yr.weekLineup[wk][s]){
+      yr.weekLineup[wk][s].members=(yr.weekLineup[wk][s].members||[]).filter(m=>m!==n);
+    }
+  });
+  if(yr.weekLineup[wk].available) yr.weekLineup[wk].available=yr.weekLineup[wk].available.filter(m=>m!==n);
+  group.members=(group.members||[]);
+  group.members.push(n);
+  saveDB(db);
+  await syncLineup(wk);
+  renderThisWeek();
+  showToast('Joined Tee Time '+slot+' ✓');
+}
+
+async function leaveGroup(slot){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const name=prompt('Enter your name to leave Tee Time '+slot+':');
+  if(!name||!name.trim())return;
+  const n=name.trim();
+  if(!yr.weekLineup||!yr.weekLineup[wk]||!yr.weekLineup[wk][slot])return;
+  const group=yr.weekLineup[wk][slot];
+  if(group.captain===n){showToast('Captain cannot leave — contact commissioner');return;}
+  group.members=(group.members||[]).filter(m=>m!==n);
+  saveDB(db);
+  await syncLineup(wk);
+  renderThisWeek();
+  showToast('Left Tee Time '+slot);
+}
+
+async function markAvailable(){
+  // Legacy — now handled by status picker
+  showStatusPicker();
+}
+
+function showStatusPicker(){
+  const db=getDB();
+  const picker=document.getElementById('status-picker');
+  if(!picker)return;
+  picker.style.display=picker.style.display==='none'?'block':'none';
+  if(picker.style.display==='none')return;
+  // Populate name dropdown
+  const nameEl=document.getElementById('status-my-name');
+  if(nameEl){
+    nameEl.innerHTML='<option value="">-- Select your name --</option>'+
+      [...db.players,...(db.subs||[])].sort().map(p=>`<option value="${p}">${p}</option>`).join('');
+  }
+  // Populate partner dropdown
+  const partnerEl=document.getElementById('status-partner');
+  if(partnerEl){
+    partnerEl.innerHTML='<option value="">-- Select partner --</option>'+
+      [...db.players,...(db.subs||[])].sort().map(p=>`<option value="${p}">${p}</option>`).join('');
+  }
+  document.getElementById('status-save-msg').textContent='';
+}
+
+function onStatusNameChange(){
+  // Pre-select their current status if any
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const name=document.getElementById('status-my-name').value;
+  if(!name)return;
+  const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  // Find current status
+  const notPlaying=(lineup.notPlaying||[]).includes(name);
+  const teamLooking=(lineup.teamsLooking||[]).find(t=>t.p1===name||t.p2===name);
+  const playerLooking=(lineup.playersLooking||[]).includes(name);
+  const typeEl=document.getElementById('status-type');
+  if(notPlaying) typeEl.value='not_playing';
+  else if(teamLooking){typeEl.value='team_looking';onStatusTypeChange();
+    const partnerEl=document.getElementById('status-partner');
+    if(partnerEl)partnerEl.value=teamLooking.p1===name?teamLooking.p2:teamLooking.p1;
+  }
+  else if(playerLooking) typeEl.value='player_looking';
+  else typeEl.value='';
+  onStatusTypeChange();
+}
+
+function onStatusTypeChange(){
+  const type=document.getElementById('status-type').value;
+  const partnerRow=document.getElementById('partner-row');
+  if(partnerRow) partnerRow.style.display=type==='team_looking'?'block':'none';
+}
+
+async function saveMyStatus(){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const name=document.getElementById('status-my-name').value;
+  const type=document.getElementById('status-type').value;
+  const partner=document.getElementById('status-partner')?.value;
+  const msgEl=document.getElementById('status-save-msg');
+  if(!name){showToast('Please select your name');return;}
+  if(!type){showToast('Please select a status');return;}
+  if(type==='team_looking'&&!partner){showToast('Please select your partner');return;}
+  if(type==='team_looking'&&partner===name){showToast('Partner cannot be yourself');return;}
+
+  if(!yr.weekLineup)yr.weekLineup={};
+  if(!yr.weekLineup[wk])yr.weekLineup[wk]={};
+  const lineup=yr.weekLineup[wk];
+
+  // Remove player from all status lists first
+  lineup.notPlaying=(lineup.notPlaying||[]).filter(n=>n!==name);
+  lineup.playersLooking=(lineup.playersLooking||[]).filter(n=>n!==name);
+  lineup.teamsLooking=(lineup.teamsLooking||[]).filter(t=>t.p1!==name&&t.p2!==name);
+  lineup.available=(lineup.available||[]).filter(n=>n!==name);
+
+  // Apply new status
+  if(type==='not_playing'){
+    lineup.notPlaying=[...(lineup.notPlaying||[]),name];
+    // Also remove from any tee time group
+    [1,2,3,4,5,6,7,8,9].forEach(s=>{
+      if(lineup[s]&&lineup[s].captain!==name)
+        lineup[s].members=(lineup[s].members||[]).filter(m=>m!==name);
+    });
+  } else if(type==='player_looking'){
+    lineup.playersLooking=[...(lineup.playersLooking||[]),name];
+  } else if(type==='team_looking'){
+    // Remove partner from their status too
+    lineup.notPlaying=(lineup.notPlaying||[]).filter(n=>n!==partner);
+    lineup.playersLooking=(lineup.playersLooking||[]).filter(n=>n!==partner);
+    lineup.teamsLooking=(lineup.teamsLooking||[]).filter(t=>t.p1!==partner&&t.p2!==partner);
+    lineup.teamsLooking=[...(lineup.teamsLooking||[]),{p1:name,p2:partner}];
+  }
+
+  saveDB(db);
+  await syncLineup(wk);
+  renderThisWeek();
+  if(msgEl)msgEl.textContent='✓ Status saved!';
+  showToast('Status updated ✓');
+  setTimeout(()=>{
+    const picker=document.getElementById('status-picker');
+    if(picker)picker.style.display='none';
+  },1000);
+}
+
+async function removeAvailable(name){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  if(!yr.weekLineup||!yr.weekLineup[wk])return;
+  yr.weekLineup[wk].available=(yr.weekLineup[wk].available||[]).filter(m=>m!==name);
+  saveDB(db);
+  await syncLineup(wk);
+  renderThisWeek();
+}
+
+async function syncLineup(wk){
+  const db=getDB();const yr=getYear(db);
+  if(!db.sheetUrl||!yr.weekLineup||!yr.weekLineup[wk])return;
+  try{
+    await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
+      action:'saveConfig',
+      data:{['weekLineup_'+db.activeYear+'_wk'+wk]:JSON.stringify(yr.weekLineup[wk])}
+    })});
+  }catch(e){}
+}
+
+function toggleSlotEdit(slot){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const el=document.getElementById('tw-edit-'+slot);
+  if(!el)return;
+  const isOpen=el.style.display!=='none';
+  if(isOpen){el.style.display='none';return;}
+  el.style.display='block';
+  // Populate all 4 player dropdowns
+  const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  const group=lineup[slot]||{};
+  const members=group.members||[];
+  const allPlayers=[...db.players,...(db.subs||[])].sort();
+  const opts='<option value="">-- Select --</option>'+allPlayers.map(p=>`<option value="${p}">${p}</option>`).join('');
+  [1,2,3,4].forEach(i=>{
+    const sel=document.getElementById('tw-'+slot+'-p'+i);
+    if(sel){
+      sel.innerHTML=opts;
+      if(members[i-1]) sel.value=members[i-1];
+    }
+  });
+}
+
+async function saveSlotFoursome(slot){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const players=[];
+  [1,2,3,4].forEach(i=>{
+    const sel=document.getElementById('tw-'+slot+'-p'+i);
+    if(sel&&sel.value) players.push(sel.value);
+  });
+  if(!players.length){showToast('Select at least one player');return;}
+  // Check for duplicates
+  if(new Set(players).size!==players.length){showToast('Each player can only appear once');return;}
+  if(!yr.weekLineup)yr.weekLineup={};
+  if(!yr.weekLineup[wk])yr.weekLineup[wk]={};
+  if(!yr.weekLineup[wk][slot])yr.weekLineup[wk][slot]={};
+  const group=yr.weekLineup[wk][slot];
+  // Remove these players from other slots first
+  players.forEach(name=>{
+    [1,2,3,4,5,6,7,8,9].forEach(s=>{
+      if(s!==slot&&yr.weekLineup[wk][s]){
+        yr.weekLineup[wk][s].members=(yr.weekLineup[wk][s].members||[]).filter(m=>m!==name);
+      }
+    });
+    // Remove from status lists
+    yr.weekLineup[wk].notPlaying=(yr.weekLineup[wk].notPlaying||[]).filter(n=>n!==name);
+    yr.weekLineup[wk].playersLooking=(yr.weekLineup[wk].playersLooking||[]).filter(n=>n!==name);
+    yr.weekLineup[wk].teamsLooking=(yr.weekLineup[wk].teamsLooking||[]).filter(t=>t.p1!==name&&t.p2!==name);
+  });
+  group.members=players;
+  // First player becomes captain if no captain set
+  if(!group.captain) group.captain=players[0];
+  saveDB(db);
+  await syncLineup(wk);
+  document.getElementById('tw-edit-'+slot).style.display='none';
+  renderThisWeek();
+  showToast('Tee Time '+slot+' foursome saved ✓');
+}
+
+async function clearSlotFoursome(slot){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  if(!yr.weekLineup||!yr.weekLineup[wk]||!yr.weekLineup[wk][slot])return;
+  // Keep captain, clear members
+  const cap=yr.weekLineup[wk][slot].captain;
+  yr.weekLineup[wk][slot].members=cap?[cap]:[];
+  saveDB(db);
+  await syncLineup(wk);
+  document.getElementById('tw-edit-'+slot).style.display='none';
+  renderThisWeek();
+  showToast('Foursome cleared');
+}
+
+function renderThisWeek(){
+  const db=getDB();const yr=getYear(db);
+  const el=document.getElementById('thisweek-list');
+  if(!el)return;
+  document.getElementById('thisweek-year-pill').textContent=db.activeYear;
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const sub=document.getElementById('thisweek-sub');
+  if(sub)sub.textContent='Week '+wk+' · Thursday';
+  const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  const available=lineup.available||[];
+
+  const slots=[1,2,3,4,5,6,7,8,9].map(slot=>{
+    const group=lineup[slot]||{};
+    const captain=group.captain||'';
+    const members=(group.members||[]);
+    const teeStr=getTeeTimeStr(slot);
+    const isEmpty=!captain&&!members.length;
+
+    const memberList=members.map(m=>{
+      const isCap=m===captain;
+      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px">${m}${isCap?' <span style="font-size:10px;background:var(--navy);color:#fff;padding:1px 5px;border-radius:10px">Captain</span>':''}</div>
+        ${!isCap?`<button onclick="leaveGroup(${slot})" style="font-size:10px;color:var(--text2);background:none;border:none;cursor:pointer">✕ Leave</button>`:''}
+      </div>`;
+    }).join('');
+
+    const openSpots=4-members.length;
+    const spotsStr=openSpots>0?`<span style="font-size:11px;color:var(--text2)">${openSpots} spot${openSpots!==1?'s':''} open</span>`:'<span style="font-size:11px;color:var(--green-d)">Full</span>';
+
+    const editId=`tw-edit-${slot}`;
+    return`<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="tee-badge">${slot}</span>
+          <div>
+            <div style="font-weight:700;font-size:13px">${teeStr}</div>
+            <div style="font-size:11px;color:var(--text2)">${isEmpty?'No captain assigned yet':''}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${spotsStr}
+          <button onclick="toggleSlotEdit(${slot})" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:20px;background:var(--white);cursor:pointer;color:var(--navy)">✏️ Edit</button>
+        </div>
+      </div>
+      ${memberList||`<div style="font-size:12px;color:var(--text2);padding:6px 0">No players yet</div>`}
+      <!-- Inline edit panel -->
+      <div id="${editId}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:8px">Set Foursome for Tee Time ${slot}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:2px">Team A — Player 1</div>
+            <select id="tw-${slot}-p1" style="width:100%;font-size:12px"><option value="">-- Select --</option></select>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:2px">Team A — Player 2</div>
+            <select id="tw-${slot}-p2" style="width:100%;font-size:12px"><option value="">-- Select --</option></select>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:2px">Team B — Player 3</div>
+            <select id="tw-${slot}-p3" style="width:100%;font-size:12px"><option value="">-- Select --</option></select>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:2px">Team B — Player 4</div>
+            <select id="tw-${slot}-p4" style="width:100%;font-size:12px"><option value="">-- Select --</option></select>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="saveSlotFoursome(${slot})" style="flex:1;padding:8px;background:var(--navy);color:#fff;border:none;border-radius:var(--rsm);font-size:13px;cursor:pointer;font-weight:600">✓ Save Foursome</button>
+          <button onclick="clearSlotFoursome(${slot})" style="padding:8px 12px;background:var(--red-l);color:var(--red);border:1px solid var(--red);border-radius:var(--rsm);font-size:12px;cursor:pointer">Clear</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Teams looking for a match
+  const teamsLooking=lineup.teamsLooking||[];
+  const teamsSection=teamsLooking.length?`
+    <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">👥 Teams Looking for a Match</div>
+    <div class="card">
+      ${teamsLooking.map(t=>`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:600">${t.p1} &amp; ${t.p2}</div>
+        <div style="font-size:11px;color:var(--text2)">Looking for opponents</div>
+      </div>`).join('')}
+    </div>`:
+    '';
+
+  // Players looking for a partner
+  const playersLooking=lineup.playersLooking||[];
+  const playersSection=playersLooking.length?`
+    <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">🙋 Players Looking for a Partner &amp; Match</div>
+    <div class="card">
+      ${playersLooking.map(n=>`<div style="padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px">${n}</span>
+      </div>`).join('')}
+    </div>`:
+    '';
+
+  // Not playing
+  const notPlaying=lineup.notPlaying||[];
+  const notPlayingSection=notPlaying.length?`
+    <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">❌ Not Playing This Week</div>
+    <div class="card">
+      ${notPlaying.map(n=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2)">${n}</div>`).join('')}
+    </div>`:
+    '';
+
+  el.innerHTML=slots+teamsSection+playersSection+notPlayingSection;
+}
+
 </script>
 </body>
 </html>
