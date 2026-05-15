@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.55</title>
+<title>OCBC Golf League v1.56</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.55</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.56</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.55</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.56</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -1007,7 +1007,10 @@ function applyConfig(db, yr, cfg){
   // Season start date and week1Side — commissioner sets once, all phones pick up
   const startDateKey='seasonStartDate_'+db.activeYear;
   const week1SideKey='week1Side_'+db.activeYear;
-  if(cfg[startDateKey]) yr.seasonStartDate=cfg[startDateKey];
+  if(cfg[startDateKey]){
+    // Strip time portion if present (Sheet may store as ISO timestamp)
+    yr.seasonStartDate=String(cfg[startDateKey]).substring(0,10);
+  }
   if(cfg[week1SideKey]) yr.week1Side=cfg[week1SideKey];
   // Side override — keyed by year+week
   const wk=calcCurrentWeek(yr);
@@ -3335,9 +3338,12 @@ async function fetchLineupFromSheet(wk){
         const ll=typeof d.config[key]==='string'?JSON.parse(d.config[key]):d.config[key];
         if(!yr.weekLineup)yr.weekLineup={};
         yr.weekLineup[wk]=ll;
+        // Apply full config so seasonStartDate, week1Side etc all get saved
+        applyConfig(db, yr, d.config);
         saveDB(db);
         // Re-render with fresh data
         renderThisWeekDisplay();
+        renderHome(); // update week number too
       }catch(e){}
     }
   }catch(e){}
