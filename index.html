@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.52</title>
+<title>OCBC Golf League v1.53</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.52</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.53</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.52</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.53</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -440,7 +440,9 @@ label:first-child{margin-top:0}
     <!-- Action buttons -->
     <div style="padding:8px 15px 0;display:flex;flex-direction:column;gap:6px">
       <button class="btn btn-secondary" style="font-size:13px;text-align:left;padding:10px 14px" onclick="showStatusPicker()">📋 Update My Status for This Week</button>
+      <button class="btn btn-secondary" style="font-size:11px;padding:6px 14px;color:var(--text2)" onclick="debugLineup()">🔍 Debug Lineup Sync</button>
     </div>
+    <div id="lineup-debug" style="display:none;margin:6px 15px 0;font-size:11px;font-family:monospace;background:var(--bg);padding:8px;border-radius:6px;word-break:break-all"></div>
     <div id="status-picker" style="display:none;margin:8px 15px 0;background:var(--white);border:1px solid var(--border);border-radius:var(--rsm);padding:12px">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">My Status This Week</div>
       <label style="font-size:12px;color:var(--text2)">My Name</label>
@@ -3226,6 +3228,41 @@ async function syncLineup(wk){
       data:{['weekLineup_'+db.activeYear+'_upcoming']:JSON.stringify(yr.weekLineup[wk])}
     })});
   }catch(e){}
+}
+
+async function debugLineup(){
+  const db=getDB();const yr=getYear(db);
+  const el=document.getElementById('lineup-debug');
+  if(!el)return;
+  el.style.display='block';
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const localKey='weekLineup_'+db.activeYear+'_upcoming';
+  const localData=yr.weekLineup;
+  el.innerHTML='<b>Local state:</b><br>'+
+    'sheetUrl: '+(db.sheetUrl?'set':'NOT SET')+'<br>'+
+    'activeYear: '+db.activeYear+'<br>'+
+    'wk: '+wk+'<br>'+
+    'seasonStartDate: '+yr.seasonStartDate+'<br>'+
+    'localLineup: '+(localData?JSON.stringify(Object.keys(localData)):'none')+'<br>'+
+    '<br>Fetching from sheet...';
+  if(!db.sheetUrl){el.innerHTML+='<br><b>ERROR: No sheet URL!</b>';return;}
+  try{
+    const url=db.sheetUrl+'?action=getConfig&year='+encodeURIComponent(db.activeYear);
+    el.innerHTML+='<br>URL: '+url.substring(0,60)+'...';
+    const r=await fetch(url);
+    const d=await r.json();
+    el.innerHTML+='<br>Response ok: '+d.ok;
+    if(d.config){
+      const keys=Object.keys(d.config).filter(k=>k.includes('weekLineup')||k.includes('season'));
+      el.innerHTML+='<br>Config keys with lineup/season: '+JSON.stringify(keys);
+      const lineupVal=d.config['weekLineup_'+db.activeYear+'_upcoming'];
+      el.innerHTML+='<br>lineup value: '+(lineupVal?lineupVal.substring(0,100)+'...':'NOT FOUND');
+    } else {
+      el.innerHTML+='<br>No config returned';
+    }
+  }catch(e){
+    el.innerHTML+='<br><b>FETCH ERROR: '+e.message+'</b>';
+  }
 }
 
 async function fetchLineupFromSheet(wk){
