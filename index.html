@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.62</title>
+<title>OCBC Golf League v1.63</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.62</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.63</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.62</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.63</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3067,16 +3067,16 @@ async function saveCaptains(){
   const db=getDB();const yr=getYear(db);
   const wk=getLineupWeek(yr); // save for next week
   if(!yr.weekLineup)yr.weekLineup={};
-  if(!yr.weekLineup[wk])yr.weekLineup[wk]={};
+  if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
   [1,2,3,4,5,6,7,8,9].forEach(slot=>{
     const sel=document.getElementById('cap-slot-'+slot);
     if(sel){
       const cap=sel.value;
-      if(!yr.weekLineup[wk][slot])yr.weekLineup[wk][slot]={members:[],available:[]};
-      yr.weekLineup[wk][slot].captain=cap;
+      if(!yr.weekLineup['upcoming'][slot])yr.weekLineup['upcoming'][slot]={members:[],available:[]};
+      yr.weekLineup['upcoming'][slot].captain=cap;
       // Keep existing members but update captain slot
-      if(cap&&!yr.weekLineup[wk][slot].members.includes(cap)){
-        yr.weekLineup[wk][slot].members=[cap,...yr.weekLineup[wk][slot].members.filter(m=>m!==cap)];
+      if(cap&&!yr.weekLineup['upcoming'][slot].members.includes(cap)){
+        yr.weekLineup['upcoming'][slot].members=[cap,...yr.weekLineup['upcoming'][slot].members.filter(m=>m!==cap)];
       }
     }
   });
@@ -3087,7 +3087,7 @@ async function saveCaptains(){
     try{
       await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
         action:'saveConfig',
-        data:{['weekLineup_'+db.activeYear+'_upcoming']:JSON.stringify(yr.weekLineup[wk])}
+        data:{['weekLineup_'+db.activeYear+'_upcoming']:JSON.stringify(yr.weekLineup['upcoming'])}
       })});
       if(statusEl)statusEl.textContent='✓ Lineup published for Week '+wk;
       showToast('Lineup published ✓');
@@ -3108,14 +3108,14 @@ async function joinGroup(slot){
   if(!name||!name.trim())return;
   const n=name.trim();
   if(!yr.weekLineup)yr.weekLineup={};
-  if(!yr.weekLineup[wk])yr.weekLineup[wk]={};
-  if(!yr.weekLineup[wk][slot])yr.weekLineup[wk][slot]={members:[],captain:''};
-  const group=yr.weekLineup[wk][slot];
+  if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
+  if(!yr.weekLineup['upcoming'][slot])yr.weekLineup['upcoming'][slot]={members:[],captain:''};
+  const group=yr.weekLineup['upcoming'][slot];
   if(group.members.includes(n)){showToast('You are already in this group');return;}
   // Remove from other groups/available this week
   [1,2,3,4,5,6,7,8,9].forEach(s=>{
-    if(yr.weekLineup[wk][s]){
-      const otherGroup=yr.weekLineup[wk][s];
+    if(yr.weekLineup['upcoming'][s]){
+      const otherGroup=yr.weekLineup['upcoming'][s];
       otherGroup.members=(otherGroup.members||[]).filter(m=>m!==n);
       // If this player was captain of another slot, mark it as vacated
       if(otherGroup.captain===n){
@@ -3124,7 +3124,7 @@ async function joinGroup(slot){
       }
     }
   });
-  if(yr.weekLineup[wk].available) yr.weekLineup[wk].available=yr.weekLineup[wk].available.filter(m=>m!==n);
+  if(yr.weekLineup['upcoming'].available) yr.weekLineup['upcoming'].available=yr.weekLineup['upcoming'].available.filter(m=>m!==n);
   group.members=(group.members||[]);
   group.members.push(n);
   saveDB(db);
@@ -3139,8 +3139,8 @@ async function leaveGroup(slot){
   const name=prompt('Enter your name to leave Tee Time '+slot+':');
   if(!name||!name.trim())return;
   const n=name.trim();
-  if(!yr.weekLineup||!yr.weekLineup[wk]||!yr.weekLineup[wk][slot])return;
-  const group=yr.weekLineup[wk][slot];
+  if(!yr.weekLineup||!yr.weekLineup['upcoming']||!yr.weekLineup['upcoming'][slot])return;
+  const group=yr.weekLineup['upcoming'][slot];
   if(group.captain===n){showToast('Captain cannot leave — contact commissioner');return;}
   group.members=(group.members||[]).filter(m=>m!==n);
   saveDB(db);
@@ -3181,7 +3181,7 @@ function onStatusNameChange(){
   const wk=getLineupWeek(yr); // next week lineup
   const name=document.getElementById('status-my-name').value;
   if(!name)return;
-  const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  const lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
   // Find current status
   const notPlaying=(lineup.notPlaying||[]).includes(name);
   const teamLooking=(lineup.teamsLooking||[]).find(t=>t.p1===name||t.p2===name);
@@ -3216,8 +3216,8 @@ async function saveMyStatus(){
   if(type==='team_looking'&&partner===name){showToast('Partner cannot be yourself');return;}
 
   if(!yr.weekLineup)yr.weekLineup={};
-  if(!yr.weekLineup[wk])yr.weekLineup[wk]={};
-  const lineup=yr.weekLineup[wk];
+  if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
+  const lineup=yr.weekLineup['upcoming'];
 
   // Remove player from all status lists first
   lineup.notPlaying=(lineup.notPlaying||[]).filter(n=>n!==name);
@@ -3263,8 +3263,8 @@ async function saveMyStatus(){
 async function removeAvailable(name){
   const db=getDB();const yr=getYear(db);
   const wk=getLineupWeek(yr); // next week lineup
-  if(!yr.weekLineup||!yr.weekLineup[wk])return;
-  yr.weekLineup[wk].available=(yr.weekLineup[wk].available||[]).filter(m=>m!==name);
+  if(!yr.weekLineup||!yr.weekLineup['upcoming'])return;
+  yr.weekLineup['upcoming'].available=(yr.weekLineup['upcoming'].available||[]).filter(m=>m!==name);
   saveDB(db);
   await syncLineup(wk);
   renderThisWeek();
@@ -3272,11 +3272,11 @@ async function removeAvailable(name){
 
 async function syncLineup(wk){
   const db=getDB();const yr=getYear(db);
-  if(!db.sheetUrl||!yr.weekLineup||!yr.weekLineup[wk])return;
+  if(!db.sheetUrl||!yr.weekLineup||!yr.weekLineup['upcoming'])return;
   try{
     await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
       action:'saveConfig',
-      data:{['weekLineup_'+db.activeYear+'_upcoming']:JSON.stringify(yr.weekLineup[wk])}
+      data:{['weekLineup_'+db.activeYear+'_upcoming']:JSON.stringify(yr.weekLineup['upcoming'])}
     })});
   }catch(e){}
 }
@@ -3343,13 +3343,13 @@ async function fetchLineupFromSheet(wk){
         if(!yr.weekLineup)yr.weekLineup={};
         // Apply full config FIRST so seasonStartDate is set correctly
         applyConfig(db, yr, d.config);
-        // Use next week number for lineup storage
-        const correctWk=getLineupWeek(yr);
-        yr.weekLineup[correctWk]=ll;
+        // Store under 'upcoming' key - same as Sheet, no week number dependency
+        yr.weekLineup['upcoming']=ll;
         saveDB(db);
         // Re-render directly with the data we have
         const el=document.getElementById('thisweek-list');
-        if(el) _renderThisWeekInner(db,yr,correctWk,ll,el);
+        const nextWk=getLineupWeek(yr);
+        if(el) _renderThisWeekInner(db,yr,nextWk,ll,el);
         renderHome();
       }catch(e){
         const el=document.getElementById('thisweek-list');
@@ -3370,7 +3370,8 @@ function renderThisWeekDisplay(){
   const el=document.getElementById('thisweek-list');
   if(!el)return;
   const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  // Read from 'upcoming' key - consistent regardless of week number
+  const lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
   _renderThisWeekInner(db,yr,wk,lineup,el);
 }
 
@@ -3383,7 +3384,7 @@ function toggleSlotEdit(slot){
   if(isOpen){el.style.display='none';return;}
   el.style.display='block';
   // Populate all 4 player dropdowns
-  const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  const lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
   const group=lineup[slot]||{};
   const members=group.members||[];
   const allPlayers=[...db.players,...(db.subs||[])].sort();
@@ -3409,14 +3410,14 @@ async function saveSlotFoursome(slot){
   // Check for duplicates
   if(new Set(players).size!==players.length){showToast('Each player can only appear once');return;}
   if(!yr.weekLineup)yr.weekLineup={};
-  if(!yr.weekLineup[wk])yr.weekLineup[wk]={};
-  if(!yr.weekLineup[wk][slot])yr.weekLineup[wk][slot]={};
-  const group=yr.weekLineup[wk][slot];
+  if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
+  if(!yr.weekLineup['upcoming'][slot])yr.weekLineup['upcoming'][slot]={};
+  const group=yr.weekLineup['upcoming'][slot];
   // Remove these players from other slots first
   players.forEach(name=>{
     [1,2,3,4,5,6,7,8,9].forEach(s=>{
-      if(s!==slot&&yr.weekLineup[wk][s]){
-        const otherGroup=yr.weekLineup[wk][s];
+      if(s!==slot&&yr.weekLineup['upcoming'][s]){
+        const otherGroup=yr.weekLineup['upcoming'][s];
         otherGroup.members=(otherGroup.members||[]).filter(m=>m!==name);
         // If this player was captain of another slot, mark that slot as needing a captain
         if(otherGroup.captain===name){
@@ -3426,9 +3427,9 @@ async function saveSlotFoursome(slot){
       }
     });
     // Remove from status lists
-    yr.weekLineup[wk].notPlaying=(yr.weekLineup[wk].notPlaying||[]).filter(n=>n!==name);
-    yr.weekLineup[wk].playersLooking=(yr.weekLineup[wk].playersLooking||[]).filter(n=>n!==name);
-    yr.weekLineup[wk].teamsLooking=(yr.weekLineup[wk].teamsLooking||[]).filter(t=>t.p1!==name&&t.p2!==name);
+    yr.weekLineup['upcoming'].notPlaying=(yr.weekLineup['upcoming'].notPlaying||[]).filter(n=>n!==name);
+    yr.weekLineup['upcoming'].playersLooking=(yr.weekLineup['upcoming'].playersLooking||[]).filter(n=>n!==name);
+    yr.weekLineup['upcoming'].teamsLooking=(yr.weekLineup['upcoming'].teamsLooking||[]).filter(t=>t.p1!==name&&t.p2!==name);
   });
   group.members=players;
   group.captainVacated=false;
@@ -3444,10 +3445,10 @@ async function saveSlotFoursome(slot){
 async function clearSlotFoursome(slot){
   const db=getDB();const yr=getYear(db);
   const wk=getLineupWeek(yr); // next week lineup
-  if(!yr.weekLineup||!yr.weekLineup[wk]||!yr.weekLineup[wk][slot])return;
+  if(!yr.weekLineup||!yr.weekLineup['upcoming']||!yr.weekLineup['upcoming'][slot])return;
   // Keep captain, clear members
-  const cap=yr.weekLineup[wk][slot].captain;
-  yr.weekLineup[wk][slot].members=cap?[cap]:[];
+  const cap=yr.weekLineup['upcoming'][slot].captain;
+  yr.weekLineup['upcoming'][slot].members=cap?[cap]:[];
   saveDB(db);
   await syncLineup(wk);
   document.getElementById('tw-edit-'+slot).style.display='none';
@@ -3465,7 +3466,8 @@ function renderThisWeek(){
   if(sub)sub.textContent='Week '+wk+' · Thursday';
   // Always fetch fresh lineup from Sheet when tab opens
   if(db.sheetUrl) fetchLineupFromSheet(wk);
-  const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
+  // Read from 'upcoming' key - consistent regardless of week number
+  const lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
   _renderThisWeekInner(db,yr,wk,lineup,el);
 }
 
