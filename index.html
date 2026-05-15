@@ -2770,9 +2770,12 @@ function loadEditRound(){
     '<th style="text-align:center;padding:4px;font-size:10px;color:var(--navy)">Tot</th></tr>';
   const playerRows=wd.players.map((pl,pi)=>{
     const cells=holes.map((h,hi)=>{
-      const score=wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+pi]:h.p;
-      if(score>=99)return '<td style="text-align:center;padding:2px"><span style="color:var(--border)">—</span></td>';
-      return '<td style="text-align:center;padding:2px"><input type="number" id="edit-p'+pi+'-h'+hi+'" value="'+score+'" min="1" max="15" style="width:36px;text-align:center;padding:2px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="updateEditTot('+pi+','+holes.length+')"></td>';
+      const rawScore=wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+pi]:null;
+      const isNewPlayer=pi>=wd.players.length;
+      const score=(rawScore&&rawScore<99)?rawScore:h.p;
+      const isEmpty=!rawScore||rawScore>=99;
+      const borderStyle=isNewPlayer?'border-color:#d4a800;background:var(--gold-l);':'';
+      return '<td style="text-align:center;padding:2px"><input type="number" id="edit-p'+pi+'-h'+hi+'" value="'+(isEmpty&&isNewPlayer?'':score)+'" placeholder="'+h.p+'" min="1" max="15" style="width:36px;text-align:center;padding:2px;border:1px solid var(--border);border-radius:4px;font-size:12px;'+borderStyle+'" oninput="updateEditTot('+pi+','+holes.length+')"></td>';
     }).join('');
     const tot=holes.reduce((s,_,hi)=>{
       const v=wd.scores&&wd.scores[hi]?wd.scores[hi]['p'+pi]:0;
@@ -2841,13 +2844,14 @@ async function saveEditedRound(){
   const HFRONT=[{n:1,p:4},{n:2,p:3},{n:3,p:5},{n:4,p:4},{n:5,p:3},{n:6,p:4},{n:7,p:4},{n:8,p:4},{n:9,p:4}];
   const HBACK=[{n:10,p:4},{n:11,p:4},{n:12,p:3},{n:13,p:5},{n:14,p:3},{n:15,p:4},{n:16,p:3},{n:17,p:5},{n:18,p:4}];
   const holes=wd.side==='back'?HBACK:HFRONT;
-  wd.players.forEach((pl,pi)=>{
+  // Save scores for all 4 slots including newly added players
+  [0,1,2,3].forEach(pi=>{
     holes.forEach((_,hi)=>{
       const el=document.getElementById('edit-p'+pi+'-h'+hi);
-      if(el){
+      if(el&&el.value){
         const v=parseInt(el.value);
         if(!isNaN(v)&&v>0){
-          if(!wd.scores[hi])wd.scores[hi]={};
+          if(!wd.scores[hi])wd.scores[hi]={p0:holes[hi].p,p1:holes[hi].p,p2:holes[hi].p,p3:holes[hi].p};
           wd.scores[hi]['p'+pi]=v;
         }
       }
