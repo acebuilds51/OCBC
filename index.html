@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.68</title>
+<title>OCBC Golf League v1.70</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.68</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.70</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.68</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.70</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -440,6 +440,7 @@ label:first-child{margin-top:0}
     <!-- Action buttons -->
     <div style="padding:8px 15px 0;display:flex;flex-direction:column;gap:6px">
       <button class="btn btn-secondary" style="font-size:13px;text-align:left;padding:10px 14px" onclick="showStatusPicker()">📋 Update My Status for This Week</button>
+
     </div>
     <div id="status-picker" style="display:none;margin:8px 15px 0;background:var(--white);border:1px solid var(--border);border-radius:var(--rsm);padding:12px">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">My Status This Week</div>
@@ -468,6 +469,35 @@ label:first-child{margin-top:0}
       <div id="status-save-msg" style="margin-top:6px;font-size:12px;color:var(--green-d)"></div>
     </div>
     <div class="section" id="thisweek-list"></div>
+
+    <!-- RESTORE CAPTAIN PICKER (admin only) -->
+    <div id="restore-picker-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center" onclick="if(event.target===this)closeRestorePicker()">
+      <div style="background:var(--white);border-radius:12px;padding:20px;width:90%;max-width:360px">
+        <div style="font-weight:700;font-size:16px;margin-bottom:4px">🔄 Insert Captain to Slot</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Inserts captain at selected position, shifting others down if needed.</div>
+        <label style="font-size:12px;color:var(--text2)">Captain</label>
+        <select id="restore-captain-name" style="width:100%;margin-top:4px;margin-bottom:12px;font-size:14px;padding:8px">
+          <option value="">-- Select captain --</option>
+        </select>
+        <label style="font-size:12px;color:var(--text2)">Insert at Tee Time Position</label>
+        <select id="restore-slot-num" style="width:100%;margin-top:4px;margin-bottom:16px;font-size:14px;padding:8px">
+          <option value="1">1 — 5:10pm</option>
+          <option value="2">2 — 5:17pm</option>
+          <option value="3">3 — 5:24pm</option>
+          <option value="4">4 — 5:31pm</option>
+          <option value="5">5 — 5:38pm</option>
+          <option value="6">6 — 5:45pm</option>
+          <option value="7">7 — 5:52pm</option>
+          <option value="8">8 — 5:59pm</option>
+          <option value="9">9 — 6:06pm</option>
+        </select>
+        <div style="display:flex;gap:8px">
+          <button onclick="confirmRestoreCaptain()" style="flex:1;padding:10px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Insert</button>
+          <button onclick="closeRestorePicker()" style="flex:1;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:14px;cursor:pointer">Cancel</button>
+        </div>
+        <div id="restore-picker-error" style="color:var(--red);font-size:12px;margin-top:8px"></div>
+      </div>
+    </div>
 
     <!-- JOIN GROUP PICKER -->
     <div id="join-picker-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;display:none;align-items:center;justify-content:center" onclick="if(event.target===this)closeJoinPicker()">
@@ -3046,6 +3076,14 @@ async function saveEditedRound(){
 
 
 // ── THIS WEEK LINEUP ──────────────────────────────────────────
+async function reorderAndSync(){
+  const db=getDB();const yr=getYear(db);
+  const wk=getLineupWeek(yr);
+  reorderLineup();
+  await syncLineup(wk);
+  renderThisWeek();
+}
+
 function getLineupWeek(yr){
   // Lineup is always for the NEXT upcoming week
   const curWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek||1;
@@ -3313,13 +3351,15 @@ async function saveMyStatus(){
     [1,2,3,4,5,6,7,8,9].forEach(s=>{
       if(lineup[s]){
         lineup[s].members=(lineup[s].members||[]).filter(m=>m!==name);
-        // If captain is not playing, flag slot as vacated
+        // If captain is not playing, clear and compress
         if(lineup[s].captain===name){
           lineup[s].captainVacated=true;
           lineup[s].captain='';
+          lineup[s].members=[];
         }
       }
     });
+    autoCompress();
   } else if(type==='player_looking'){
     lineup.playersLooking=[...(lineup.playersLooking||[]),name];
   } else if(type==='team_looking'){
@@ -3349,6 +3389,124 @@ async function removeAvailable(name){
   saveDB(db);
   await syncLineup(wk);
   renderThisWeek();
+}
+
+function showRestoreCaptainPicker(){
+  if(localStorage.getItem('adminUnlocked')!=='true'){showToast('Admin access required');return;}
+  const db=getDB();
+  const overlay=document.getElementById('restore-picker-overlay');
+  const nameEl=document.getElementById('restore-captain-name');
+  if(!overlay||!nameEl)return;
+  nameEl.innerHTML='<option value="">-- Select captain --</option>'+
+    (db.players||[]).slice().sort().map(p=>'<option value="'+p+'">'+p+'</option>').join('');
+  const errEl=document.getElementById('restore-picker-error');
+  if(errEl) errEl.textContent='';
+  overlay.style.display='flex';
+}
+
+function closeRestorePicker(){
+  const overlay=document.getElementById('restore-picker-overlay');
+  if(overlay) overlay.style.display='none';
+}
+
+async function confirmRestoreCaptain(){
+  if(localStorage.getItem('adminUnlocked')!=='true'){showToast('Admin access required');return;}
+  const nameEl=document.getElementById('restore-captain-name');
+  const slotEl=document.getElementById('restore-slot-num');
+  const errEl=document.getElementById('restore-picker-error');
+  const captain=nameEl?nameEl.value:'';
+  const insertAt=slotEl?parseInt(slotEl.value):0;
+  if(!captain){if(errEl)errEl.textContent='Please select a captain';return;}
+  if(!insertAt){if(errEl)errEl.textContent='Please select a slot';return;}
+
+  const db=getDB();const yr=getYear(db);
+  const wk=getLineupWeek(yr);
+  if(!yr.weekLineup)yr.weekLineup={};
+  if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
+  var lineup=yr.weekLineup['upcoming'];
+
+  // Remove captain from wherever they currently are
+  for(var s=1;s<=9;s++){
+    if(lineup[s]){
+      lineup[s].members=(lineup[s].members||[]).filter(function(m){return m!==captain;});
+      if(lineup[s].captain===captain){lineup[s].captain='';lineup[s].captainVacated=false;}
+    }
+  }
+  lineup.notPlaying=(lineup.notPlaying||[]).filter(function(m){return m!==captain;});
+  lineup.playersLooking=(lineup.playersLooking||[]).filter(function(m){return m!==captain;});
+  lineup.teamsLooking=(lineup.teamsLooking||[]).filter(function(t){return t.p1!==captain&&t.p2!==captain;});
+
+  // Shift existing slots down from insertAt to make room
+  for(var shift=9;shift>=insertAt+1;shift--){
+    lineup[shift]=lineup[shift-1]?JSON.parse(JSON.stringify(lineup[shift-1])):{members:[],captain:'',captainVacated:false};
+  }
+  // Insert captain at the target slot
+  lineup[insertAt]={members:[captain],captain:captain,captainVacated:false};
+
+  yr.weekLineup['upcoming']=lineup;
+  autoCompress();
+  saveDB(db);
+  await syncLineup(wk);
+  closeRestorePicker();
+  renderThisWeek();
+  showToast(captain+' inserted at Tee Time '+insertAt+' ✓');
+}
+
+function autoCompress(){
+  // Automatically called when captain vacates — compresses filled slots up, empties go to end
+  const db=getDB();const yr=getYear(db);
+  if(!yr.weekLineup||!yr.weekLineup['upcoming'])return;
+  var lineup=yr.weekLineup['upcoming'];
+  var filled=[];
+  for(var s=1;s<=9;s++){
+    var grp=lineup[s]||{};
+    var hasContent=(grp.members&&grp.members.length>0)||(grp.captain&&!grp.captainVacated);
+    if(hasContent) filled.push(JSON.parse(JSON.stringify(grp)));
+  }
+  // Rebuild: filled slots first, empty slots after
+  for(var fi=0;fi<9;fi++){
+    if(fi<filled.length){
+      lineup[fi+1]=filled[fi];
+    } else {
+      lineup[fi+1]={members:[],captain:'',captainVacated:false};
+    }
+  }
+}
+
+function reorderLineup(){
+  // When called, compress filled slots to the top and push empty/vacated to end
+  const db=getDB();const yr=getYear(db);
+  if(!yr.weekLineup||!yr.weekLineup['upcoming'])return;
+  var lineup=yr.weekLineup['upcoming'];
+  // Separate filled groups from empty/vacated
+  var filled=[];
+  var empty=[];
+  for(var s=1;s<=9;s++){
+    var grp=lineup[s]||{};
+    var hasMembers=(grp.members&&grp.members.length>0);
+    var hasCaptain=grp.captain&&!grp.captainVacated;
+    if(hasMembers||hasCaptain){
+      filled.push({data:grp,oldSlot:s});
+    } else {
+      empty.push({data:grp,oldSlot:s});
+    }
+  }
+  // Rebuild slots: filled first, then empty
+  var newLineup={};
+  // Preserve non-slot keys
+  var preserveKeys=['available','notPlaying','playersLooking','teamsLooking'];
+  for(var ki=0;ki<preserveKeys.length;ki++){
+    if(lineup[preserveKeys[ki]]) newLineup[preserveKeys[ki]]=lineup[preserveKeys[ki]];
+  }
+  for(var fi=0;fi<filled.length;fi++){
+    newLineup[fi+1]=filled[fi].data;
+  }
+  for(var ei=0;ei<empty.length;ei++){
+    newLineup[filled.length+ei+1]={members:[],captain:'',captainVacated:false};
+  }
+  yr.weekLineup['upcoming']=newLineup;
+  saveDB(db);
+  showToast('Tee times reordered ✓');
 }
 
 async function syncLineup(wk){
@@ -3495,6 +3653,9 @@ function renderThisWeek(){
   const el=document.getElementById('thisweek-list');
   if(!el)return;
   document.getElementById('thisweek-year-pill').textContent=db.activeYear;
+  // Show admin controls if unlocked
+  const adminBtns=document.getElementById('thisweek-admin-btns');
+  if(adminBtns) adminBtns.style.display=localStorage.getItem('adminUnlocked')==='true'?'block':'none';
   const wk=getLineupWeek(yr); // next week's lineup
   const sub=document.getElementById('thisweek-sub');
   if(sub)sub.textContent='Week '+wk+' · Thursday';
