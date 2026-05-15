@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.42</title>
+<title>OCBC Golf League v1.43</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.42</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.43</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.42</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.43</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -769,19 +769,23 @@ function getYear(db){
 
 function calcCurrentWeek(yr){
   // If no season start date set, fall back to manual week number
-  if(!yr.seasonStartDate) return yr.currentWeek;
-  // Parse date string manually to avoid UTC/timezone shift
-  // '2026-04-30' should always mean April 30 in local time
-  const parts=yr.seasonStartDate.split('-').map(Number);
-  const startDay=new Date(parts[0],parts[1]-1,parts[2]); // local midnight
-  const now=new Date();
-  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); // local midnight
-  const diffMs=today-startDay;
-  if(diffMs<0) return 1;
-  const diffDays=Math.floor(diffMs/(1000*60*60*24));
-  const weekNum=Math.floor(diffDays/7)+1;
-  // Cap at 16 weeks max (season length)
-  return Math.min(16,Math.max(1,weekNum));
+  if(!yr.seasonStartDate) return yr.currentWeek||1;
+  try{
+    // Parse date string manually to avoid UTC/timezone shift
+    const parts=yr.seasonStartDate.split('-').map(Number);
+    if(parts.length!==3||parts.some(isNaN)) return yr.currentWeek||1;
+    const startDay=new Date(parts[0],parts[1]-1,parts[2]);
+    const now=new Date();
+    const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const diffMs=today-startDay;
+    if(diffMs<0) return 1;
+    const diffDays=Math.floor(diffMs/(1000*60*60*24));
+    const weekNum=Math.floor(diffDays/7)+1;
+    if(isNaN(weekNum)) return yr.currentWeek||1;
+    return Math.min(16,Math.max(1,weekNum));
+  }catch(e){
+    return yr.currentWeek||1;
+  }
 }
 
 function calcCurrentSide(yr){
