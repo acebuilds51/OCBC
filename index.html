@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.61</title>
+<title>OCBC Golf League v1.62</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.61</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.62</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.61</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.62</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -697,8 +697,8 @@ label:first-child{margin-top:0}
       </div>
 
       <div class="card">
-        <div class="card-title">📅 Set This Week's Tee Time Captains</div>
-        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter the 9 assigned captains for the upcoming week. Tee times start at 5:10pm, every 7 minutes.</p>
+        <div class="card-title">📅 Set Next Week's Tee Time Captains</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Enter the 9 assigned captains for next Thursday. Tee times start at 5:10pm, every 7 minutes.</p>
         <div id="captain-entry-rows"></div>
         <button class="btn btn-navy" style="width:100%;margin-top:10px" onclick="saveCaptains()">📅 Save & Publish Lineup</button>
         <div id="captain-save-status" style="margin-top:6px;font-size:12px;color:var(--green-d)"></div>
@@ -3027,6 +3027,12 @@ async function saveEditedRound(){
 
 
 // ── THIS WEEK LINEUP ──────────────────────────────────────────
+function getLineupWeek(yr){
+  // Lineup is always for the NEXT upcoming week
+  const curWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek||1;
+  return curWk+1;
+}
+
 function getTeeTimeStr(slot){
   // Slot 1 = 5:10pm, each +7 mins
   const base=17*60+10; // 5:10pm in minutes
@@ -3040,7 +3046,7 @@ function getTeeTimeStr(slot){
 
 function initCaptainEntry(){
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week
   const el=document.getElementById('captain-entry-rows');
   if(!el)return;
   // Load existing lineup for this week
@@ -3059,7 +3065,7 @@ function initCaptainEntry(){
 
 async function saveCaptains(){
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // save for next week
   if(!yr.weekLineup)yr.weekLineup={};
   if(!yr.weekLineup[wk])yr.weekLineup[wk]={};
   [1,2,3,4,5,6,7,8,9].forEach(slot=>{
@@ -3097,7 +3103,7 @@ async function saveCaptains(){
 async function joinGroup(slot){
   // Ask player their name
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week lineup
   const name=prompt('Enter your name to join Tee Time '+slot+':');
   if(!name||!name.trim())return;
   const n=name.trim();
@@ -3129,7 +3135,7 @@ async function joinGroup(slot){
 
 async function leaveGroup(slot){
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week lineup
   const name=prompt('Enter your name to leave Tee Time '+slot+':');
   if(!name||!name.trim())return;
   const n=name.trim();
@@ -3172,7 +3178,7 @@ function showStatusPicker(){
 function onStatusNameChange(){
   // Pre-select their current status if any
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week lineup
   const name=document.getElementById('status-my-name').value;
   if(!name)return;
   const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
@@ -3199,7 +3205,7 @@ function onStatusTypeChange(){
 
 async function saveMyStatus(){
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week lineup
   const name=document.getElementById('status-my-name').value;
   const type=document.getElementById('status-type').value;
   const partner=document.getElementById('status-partner')?.value;
@@ -3256,7 +3262,7 @@ async function saveMyStatus(){
 
 async function removeAvailable(name){
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week lineup
   if(!yr.weekLineup||!yr.weekLineup[wk])return;
   yr.weekLineup[wk].available=(yr.weekLineup[wk].available||[]).filter(m=>m!==name);
   saveDB(db);
@@ -3337,15 +3343,23 @@ async function fetchLineupFromSheet(wk){
         if(!yr.weekLineup)yr.weekLineup={};
         // Apply full config FIRST so seasonStartDate is set correctly
         applyConfig(db, yr, d.config);
-        // Now recalculate wk with correct seasonStartDate
-        const correctWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+        // Use next week number for lineup storage
+        const correctWk=getLineupWeek(yr);
         yr.weekLineup[correctWk]=ll;
         saveDB(db);
-        // Re-render directly with the data we have — don't re-read from DB
+        // Re-render directly with the data we have
         const el=document.getElementById('thisweek-list');
         if(el) _renderThisWeekInner(db,yr,correctWk,ll,el);
-        renderHome(); // update week number too
-      }catch(e){}
+        renderHome();
+      }catch(e){
+        const el=document.getElementById('thisweek-list');
+        if(el) el.innerHTML='<div style="color:var(--red);padding:20px;font-size:12px">Error: '+e.message+'</div>';
+      }
+    } else {
+      // No lineup yet — render empty slots
+      const correctWk=getLineupWeek(yr);
+      const el=document.getElementById('thisweek-list');
+      if(el) _renderThisWeekInner(db,yr,correctWk,{},el);
     }
   }catch(e){}
 }
@@ -3362,7 +3376,7 @@ function renderThisWeekDisplay(){
 
 function toggleSlotEdit(slot){
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week lineup
   const el=document.getElementById('tw-edit-'+slot);
   if(!el)return;
   const isOpen=el.style.display!=='none';
@@ -3385,7 +3399,7 @@ function toggleSlotEdit(slot){
 
 async function saveSlotFoursome(slot){
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week lineup
   const players=[];
   [1,2,3,4].forEach(i=>{
     const sel=document.getElementById('tw-'+slot+'-p'+i);
@@ -3429,7 +3443,7 @@ async function saveSlotFoursome(slot){
 
 async function clearSlotFoursome(slot){
   const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week lineup
   if(!yr.weekLineup||!yr.weekLineup[wk]||!yr.weekLineup[wk][slot])return;
   // Keep captain, clear members
   const cap=yr.weekLineup[wk][slot].captain;
@@ -3446,7 +3460,7 @@ function renderThisWeek(){
   const el=document.getElementById('thisweek-list');
   if(!el)return;
   document.getElementById('thisweek-year-pill').textContent=db.activeYear;
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const wk=getLineupWeek(yr); // next week's lineup
   const sub=document.getElementById('thisweek-sub');
   if(sub)sub.textContent='Week '+wk+' · Thursday';
   // Always fetch fresh lineup from Sheet when tab opens
