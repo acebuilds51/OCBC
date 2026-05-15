@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.67</title>
+<title>OCBC Golf League v1.68</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.67</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.68</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.67</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.68</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -468,6 +468,26 @@ label:first-child{margin-top:0}
       <div id="status-save-msg" style="margin-top:6px;font-size:12px;color:var(--green-d)"></div>
     </div>
     <div class="section" id="thisweek-list"></div>
+
+    <!-- JOIN GROUP PICKER -->
+    <div id="join-picker-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;display:none;align-items:center;justify-content:center" onclick="if(event.target===this)closeJoinPicker()">
+      <div style="background:var(--white);border-radius:12px;padding:20px;width:90%;max-width:360px">
+        <div style="font-weight:700;font-size:16px;margin-bottom:14px" id="join-picker-title">Join Tee Time</div>
+        <label style="font-size:12px;color:var(--text2)">Select your name</label>
+        <select id="join-picker-name" style="width:100%;margin-top:4px;margin-bottom:12px;font-size:14px;padding:8px">
+          <option value="">-- Select --</option>
+        </select>
+        <div id="join-sub-row" style="display:none;margin-bottom:12px">
+          <label style="font-size:12px;color:var(--text2)">Sub name (type or select)</label>
+          <input type="text" id="join-sub-name" placeholder="Enter sub's name" style="width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px">
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="confirmJoin()" style="flex:1;padding:10px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Join</button>
+          <button onclick="closeJoinPicker()" style="flex:1;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:14px;cursor:pointer">Cancel</button>
+        </div>
+        <div id="join-picker-error" style="color:var(--red);font-size:12px;margin-top:8px"></div>
+      </div>
+    </div>
   </div>
 
   <!-- SKINS TAB — current week only, public -->
@@ -3099,38 +3119,100 @@ async function saveCaptains(){
   renderThisWeek();
 }
 
-async function joinGroup(slot){
-  // Ask player their name
+var _joinPickerSlot=0;
+
+function showJoinPicker(slot){
   const db=getDB();const yr=getYear(db);
-  const wk=getLineupWeek(yr); // next week lineup
-  const name=prompt('Enter your name to join Tee Time '+slot+':');
-  if(!name||!name.trim())return;
-  const n=name.trim();
+  _joinPickerSlot=slot;
+  var overlay=document.getElementById('join-picker-overlay');
+  var title=document.getElementById('join-picker-title');
+  var nameEl=document.getElementById('join-picker-name');
+  var errEl=document.getElementById('join-picker-error');
+  if(!overlay)return;
+  // Get already-taken players
+  var lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
+  var taken={};
+  for(var s=1;s<=9;s++){
+    var grp=lineup[s]||{};
+    var mbs=grp.members||[];
+    for(var mi=0;mi<mbs.length;mi++) taken[mbs[mi]]=s;
+  }
+  // Build options - show all players, mark taken ones
+  var opts='<option value="">-- Select your name --</option>';
+  opts+='<option value="__SUB__">➕ Add a Sub (enter name)</option>';
+  var players=(db.players||[]).slice().sort();
+  for(var pi=0;pi<players.length;pi++){
+    var p=players[pi];
+    var inSlot=taken[p];
+    var disabled=inSlot&&inSlot!==slot?'disabled':'';
+    var label=p+(inSlot?' (in T'+inSlot+')':'');
+    opts+='<option value="'+p+'" '+disabled+'>'+label+'</option>';
+  }
+  nameEl.innerHTML=opts;
+  nameEl.onchange=function(){
+    var subRow=document.getElementById('join-sub-row');
+    if(subRow) subRow.style.display=nameEl.value==='__SUB__'?'block':'none';
+  };
+  if(errEl) errEl.textContent='';
+  if(title) title.textContent='Join Tee Time '+slot+' ('+getTeeTimeStr(slot)+')';
+  overlay.style.display='flex';
+}
+
+function closeJoinPicker(){
+  var overlay=document.getElementById('join-picker-overlay');
+  if(overlay) overlay.style.display='none';
+}
+
+async function confirmJoin(){
+  var nameEl=document.getElementById('join-picker-name');
+  var subNameEl=document.getElementById('join-sub-name');
+  var errEl=document.getElementById('join-picker-error');
+  var slot=_joinPickerSlot;
+  var selectedVal=nameEl?nameEl.value:'';
+  var n='';
+  var isSub=false;
+  if(selectedVal==='__SUB__'){
+    n=subNameEl?subNameEl.value.trim():'';
+    isSub=true;
+    if(!n){if(errEl)errEl.textContent='Please enter the sub name';return;}
+  } else if(selectedVal){
+    n=selectedVal;
+  } else {
+    if(errEl)errEl.textContent='Please select a name';return;
+  }
+  const db=getDB();const yr=getYear(db);
+  const wk=getLineupWeek(yr);
   if(!yr.weekLineup)yr.weekLineup={};
   if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
   if(!yr.weekLineup['upcoming'][slot])yr.weekLineup['upcoming'][slot]={members:[],captain:''};
   const group=yr.weekLineup['upcoming'][slot];
-  if(group.members.includes(n)){showToast('You are already in this group');return;}
-  // Remove from other groups/available this week
-  [1,2,3,4,5,6,7,8,9].forEach(s=>{
-    if(yr.weekLineup['upcoming'][s]){
-      const otherGroup=yr.weekLineup['upcoming'][s];
-      otherGroup.members=(otherGroup.members||[]).filter(m=>m!==n);
-      // If this player was captain of another slot, mark it as vacated
-      if(otherGroup.captain===n){
-        otherGroup.captainVacated=true;
-        otherGroup.captain='';
+  if(group.members.includes(n)){if(errEl)errEl.textContent=n+' is already in this group';return;}
+  if(group.members.length>=4){if(errEl)errEl.textContent='This group is full';return;}
+  // Remove non-subs from other groups (subs can play multiple groups)
+  if(!isSub){
+    for(var s=1;s<=9;s++){
+      if(s!==slot&&yr.weekLineup['upcoming'][s]){
+        var otherGroup=yr.weekLineup['upcoming'][s];
+        otherGroup.members=(otherGroup.members||[]).filter(function(m){return m!==n;});
+        if(otherGroup.captain===n){
+          otherGroup.captainVacated=true;
+          otherGroup.captain='';
+        }
       }
     }
-  });
-  if(yr.weekLineup['upcoming'].available) yr.weekLineup['upcoming'].available=yr.weekLineup['upcoming'].available.filter(m=>m!==n);
-  group.members=(group.members||[]);
+    yr.weekLineup['upcoming'].notPlaying=(yr.weekLineup['upcoming'].notPlaying||[]).filter(function(m){return m!==n;});
+    yr.weekLineup['upcoming'].playersLooking=(yr.weekLineup['upcoming'].playersLooking||[]).filter(function(m){return m!==n;});
+    yr.weekLineup['upcoming'].teamsLooking=(yr.weekLineup['upcoming'].teamsLooking||[]).filter(function(t){return t.p1!==n&&t.p2!==n;});
+  }
   group.members.push(n);
+  closeJoinPicker();
   saveDB(db);
   await syncLineup(wk);
   renderThisWeek();
   showToast('Joined Tee Time '+slot+' ✓');
 }
+
+async function joinGroup(slot){showJoinPicker(slot);}
 
 async function leaveGroup(slot){
   const db=getDB();const yr=getYear(db);
@@ -3427,9 +3509,6 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
   var html = '';
   var players = (db && db.players) ? db.players : [];
 
-  // DIAGNOSTIC - remove after testing
-  html += '<div style="background:var(--green);color:#fff;padding:8px;margin-bottom:8px;border-radius:6px;font-size:12px">✓ Render called · wk='+wk+' · slots='+(lineup?Object.keys(lineup).length:0)+' · players='+players.length+'</div>';
-
   // Header
   html += '<div style="font-size:13px;font-weight:700;color:var(--navy);padding:8px 0 4px">Week '+wk+' Tee Times — Thursdays from 5:10pm</div>';
 
@@ -3471,7 +3550,7 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     }
 
     if(open > 0){
-      html += '<button onclick="joinGroup('+slot+')" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join This Group</button>';
+      html += '<button onclick="showJoinPicker('+slot+')" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join This Group</button>';
     }
     html += '</div>';
   }
