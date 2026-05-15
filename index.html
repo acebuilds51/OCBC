@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.54</title>
+<title>OCBC Golf League v1.55</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.54</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.55</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.54</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.55</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3282,7 +3282,7 @@ async function debugLineup(){
   if(!db.sheetUrl){el.innerHTML+='<br><b>ERROR: No sheet URL!</b>';return;}
   try{
     const url=db.sheetUrl+'?action=getConfig&year='+encodeURIComponent(db.activeYear);
-    el.innerHTML+='<br>URL: '+url.substring(0,60)+'...';
+    el.innerHTML+='<br>Full URL: '+url;
     const r=await fetch(url);
     const d=await r.json();
     el.innerHTML+='<br>Response ok: '+d.ok;
@@ -3290,7 +3290,12 @@ async function debugLineup(){
       const keys=Object.keys(d.config).filter(k=>k.includes('weekLineup')||k.includes('season'));
       el.innerHTML+='<br>Config keys with lineup/season: '+JSON.stringify(keys);
       const lineupVal=d.config['weekLineup_'+db.activeYear+'_upcoming'];
-      el.innerHTML+='<br>lineup value: '+(lineupVal?lineupVal.substring(0,100)+'...':'NOT FOUND');
+      const urlVal=d.config['sheetUrl_'+db.activeYear];
+      const seasonVal=d.config['seasonStartDate_'+db.activeYear];
+      el.innerHTML+='<br>lineup value: '+(lineupVal?lineupVal.substring(0,80)+'...':'NOT FOUND');
+      el.innerHTML+='<br>sheetUrl in config: '+(urlVal?urlVal.substring(0,60)+'...':'NOT FOUND');
+      el.innerHTML+='<br>seasonStartDate in config: '+(seasonVal||'NOT FOUND');
+      el.innerHTML+='<br>ALL keys: '+JSON.stringify(Object.keys(d.config));
     } else {
       el.innerHTML+='<br>No config returned';
     }
