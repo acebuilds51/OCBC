@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.63</title>
+<title>OCBC Golf League v1.64</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.63</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.64</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.63</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.64</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -440,9 +440,7 @@ label:first-child{margin-top:0}
     <!-- Action buttons -->
     <div style="padding:8px 15px 0;display:flex;flex-direction:column;gap:6px">
       <button class="btn btn-secondary" style="font-size:13px;text-align:left;padding:10px 14px" onclick="showStatusPicker()">📋 Update My Status for This Week</button>
-      <button class="btn btn-secondary" style="font-size:11px;padding:6px 14px;color:var(--text2)" onclick="debugLineup()">🔍 Debug Lineup Sync</button>
     </div>
-    <div id="lineup-debug" style="display:none;margin:6px 15px 0;font-size:11px;font-family:monospace;background:var(--bg);padding:8px;border-radius:6px;word-break:break-all"></div>
     <div id="status-picker" style="display:none;margin:8px 15px 0;background:var(--white);border:1px solid var(--border);border-radius:var(--rsm);padding:12px">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">My Status This Week</div>
       <label style="font-size:12px;color:var(--text2)">My Name</label>
@@ -3281,53 +3279,6 @@ async function syncLineup(wk){
   }catch(e){}
 }
 
-async function debugLineup(){
-  const db=getDB();const yr=getYear(db);
-  const el=document.getElementById('lineup-debug');
-  if(!el)return;
-  el.style.display='block';
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  const localKey='weekLineup_'+db.activeYear+'_upcoming';
-  const localData=yr.weekLineup;
-  el.innerHTML='<b>Local state:</b><br>'+
-    'sheetUrl: '+(db.sheetUrl?'set':'NOT SET')+'<br>'+
-    'activeYear: '+db.activeYear+'<br>'+
-    'wk: '+wk+'<br>'+
-    'seasonStartDate: '+yr.seasonStartDate+'<br>'+
-    'localLineup: '+(localData?JSON.stringify(Object.keys(localData)):'none')+'<br>'+
-    '<br>Fetching from sheet...';
-  if(!db.sheetUrl){el.innerHTML+='<br><b>ERROR: No sheet URL!</b>';return;}
-  try{
-    const url=db.sheetUrl+'?action=getConfig&year='+encodeURIComponent(db.activeYear);
-    el.innerHTML+='<br>Full URL: '+url;
-    const r=await fetch(url);
-    const d=await r.json();
-    el.innerHTML+='<br>Response ok: '+d.ok;
-    if(d.config){
-      const keys=Object.keys(d.config).filter(k=>k.includes('weekLineup')||k.includes('season'));
-      el.innerHTML+='<br>Config keys with lineup/season: '+JSON.stringify(keys);
-      const lineupVal=d.config['weekLineup_'+db.activeYear+'_upcoming'];
-      const urlVal=d.config['sheetUrl_'+db.activeYear];
-      const seasonVal=d.config['seasonStartDate_'+db.activeYear];
-      el.innerHTML+='<br>lineup value: '+(lineupVal?lineupVal.substring(0,80)+'...':'NOT FOUND');
-      el.innerHTML+='<br>sheetUrl in config: '+(urlVal?urlVal.substring(0,60)+'...':'NOT FOUND');
-      el.innerHTML+='<br>seasonStartDate in config: '+(seasonVal||'NOT FOUND');
-      el.innerHTML+='<br>ALL keys: '+JSON.stringify(Object.keys(d.config));
-    } else {
-      el.innerHTML+='<br>No config returned';
-    }
-  }catch(e){
-    el.innerHTML+='<br><b>FETCH ERROR: '+e.message+'</b>';
-  }
-  // Also test write capability
-  try{
-    const wr=await fetch(db.sheetUrl+'?action=testWrite');
-    const wd2=await wr.json();
-    el.innerHTML+='<br><br><b>Write test:</b> '+(wd2.ok?'✅ '+wd2.message:'❌ '+wd2.error);
-  }catch(e){
-    el.innerHTML+='<br><b>Write test failed: '+e.message+'</b>';
-  }
-}
 
 async function fetchLineupFromSheet(wk){
   const db=getDB();const yr=getYear(db);
@@ -3473,6 +3424,9 @@ function renderThisWeek(){
 
 function _renderThisWeekInner(db,yr,wk,lineup,el){
   try{
+  // Safety checks
+  if(!el){console.error('thisweek-list element not found');return;}
+  if(!lineup){lineup={};}
   const available=lineup.available||[];
 
   const slots=[1,2,3,4,5,6,7,8,9].map(slot=>{
@@ -3583,7 +3537,7 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
   (lineup.teamsLooking||[]).forEach(t=>{accounted.add(t.p1);accounted.add(t.p2);});
   (lineup.playersLooking||[]).forEach(n=>accounted.add(n));
   (lineup.notPlaying||[]).forEach(n=>accounted.add(n));
-  const noResponse=(db.players||[]).filter(n=>!accounted.has(n)).sort();
+  const noResponse=((db&&db.players)||[]).filter(n=>!accounted.has(n)).sort();
   const noResponseSection=noResponse.length?`
     <div class="card-title" style="padding:8px 2px 6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">⏳ No Response Yet (${noResponse.length})</div>
     <div class="card">
@@ -3592,8 +3546,8 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
 
   el.innerHTML=slots+teamsSection+playersSection+notPlayingSection+noResponseSection;
   }catch(err){
-    el.innerHTML='<div style="color:var(--red);padding:20px;font-size:12px">Render error: '+err.message+'</div>';
-    console.error('_renderThisWeekInner error:',err);
+    console.error('_renderThisWeekInner error:',err.message,err.stack);
+    el.innerHTML='<div style="color:var(--red);padding:16px;font-size:13px;font-weight:600">⚠️ '+err.message+'</div>';
   }
 }
 
