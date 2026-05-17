@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.70</title>
+<title>OCBC Golf League v1.71</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.70</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.71</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.70</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.71</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3084,6 +3084,30 @@ async function reorderAndSync(){
   renderThisWeek();
 }
 
+async function removeMemberFromSlot(slot, memberIdx){
+  const db=getDB();const yr=getYear(db);
+  const wk=getLineupWeek(yr);
+  if(!yr.weekLineup||!yr.weekLineup['upcoming'])return;
+  var group=yr.weekLineup['upcoming'][slot];
+  if(!group||!group.members||memberIdx>=group.members.length)return;
+  var name=group.members[memberIdx];
+  // If removing the captain, require admin
+  if(group.captain===name&&localStorage.getItem('adminUnlocked')!=='true'){
+    showToast('Only admin can remove a captain');return;
+  }
+  group.members=group.members.filter(function(m,i){return i!==memberIdx;});
+  // If captain removed, clear captain
+  if(group.captain===name){
+    group.captain='';
+    group.captainVacated=false;
+    autoCompress();
+  }
+  saveDB(db);
+  await syncLineup(wk);
+  renderThisWeek();
+  showToast(name+' removed from Tee Time '+slot);
+}
+
 function getLineupWeek(yr){
   // Lineup is always for the NEXT upcoming week
   const curWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek||1;
@@ -3700,11 +3724,18 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
 
     if(members.length > 0){
       html += '<div style="margin-top:8px">';
+      var isAdmin=localStorage.getItem('adminUnlocked')==='true';
       for(var mi=0;mi<members.length;mi++){
         var m2 = members[mi];
         var isCap = m2===captain;
-        html += '<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:13px">'+m2;
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">';
+        html += '<span style="font-size:13px">'+m2;
         if(isCap) html += ' <span style="font-size:10px;background:var(--navy);color:#fff;padding:1px 5px;border-radius:10px">Captain</span>';
+        html += '</span>';
+        // Allow removal: anyone can remove themselves, admin can remove anyone
+        if(isAdmin || !isCap){
+          html += '<button onclick="removeMemberFromSlot('+slot+','+mi+')" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px 6px">✕ Remove</button>';
+        }
         html += '</div>';
       }
       html += '</div>';
