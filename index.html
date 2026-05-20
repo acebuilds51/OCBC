@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.81</title>
+<title>OCBC Golf League v1.82</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.81</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.82</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.81</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.82</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3896,26 +3896,22 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
   // so we can shift both tee times AND display numbers
   var vacatedBefore=0;
   var vacatedCount=[];
-  for(var vs=1;vs<=10;vs++){
+  for(var vs=1;vs<=9;vs++){
     vacatedCount[vs]=vacatedBefore;
     var vgrp=lineup&&lineup[vs]?lineup[vs]:{};
     if(vgrp.captainVacated&&!vgrp.captain) vacatedBefore++;
   }
 
-  for(var slot=1;slot<=10;slot++){
+  for(var slot=1;slot<=9;slot++){  // slot 10 (Open Group) rendered separately below
     var teeStr='';
     var displayNum=slot-vacatedCount[slot]; // renumber display position
-    // Shift tee time based on vacated slots before this one
     var effectiveSlot=slot-vacatedCount[slot];
-    if(slot<=9){
-      var mins=(effectiveSlot-1)*7;
-      var totalMins=17*60+10+mins;
-      var h=Math.floor(totalMins/60);
-      var m=totalMins%60;
-      teeStr=(h>12?h-12:h)+':'+(m<10?'0':'')+m+'pm';
-    } else {
-      teeStr='Open Group';
-    }
+    // All slots 1-10 get a real tee time based on their effective position
+    var mins=(effectiveSlot-1)*7;
+    var totalMins=17*60+10+mins;
+    var h=Math.floor(totalMins/60);
+    var m=totalMins%60;
+    teeStr=(h>12?h-12:h)+':'+(m<10?'0':'')+m+'pm';
     var group = (lineup && lineup[slot]) ? lineup[slot] : {};
     var captain = group.captain || '';
     var members = group.members || [];
@@ -3982,6 +3978,33 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     }
     html += '</div>';
   }
+
+  // Always show an Open Group card at the end for non-captain groups
+  var lastDisplayNum=10-vacatedBefore+1;
+  var openGroup=lineup&&lineup[10]?lineup[10]:{members:[],captain:''};
+  var ogMembers=openGroup.members||[];
+  var ogOpen=4-ogMembers.length;
+  html += '<div class="card" style="margin-bottom:8px;border:2px dashed var(--border)">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+  html += '<div style="display:flex;align-items:center;gap:8px">';
+  html += '<span class="tee-badge" style="background:var(--text2)">OG</span>';
+  html += '<div><div style="font-weight:700;font-size:13px">Open Group</div>';
+  html += '<div style="font-size:11px;color:var(--text2)">Any 4 players — no captain required</div></div></div>';
+  if(ogOpen>0) html += '<span style="font-size:11px;color:var(--text2)">'+ogOpen+' spot'+(ogOpen!==1?'s':'')+' open</span>';
+  else html += '<span style="font-size:11px;color:var(--green-d)">Full</span>';
+  html += '</div>';
+  if(ogMembers.length>0){
+    html += '<div style="margin-top:8px">';
+    for(var ogi=0;ogi<ogMembers.length;ogi++){
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">';
+      html += '<span style="font-size:13px">'+ogMembers[ogi]+'</span>';
+      html += '<button onclick="removeMemberFromSlot(10,'+ogi+')" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px 6px">✕ Remove</button>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  if(ogOpen>0) html += '<button onclick="showJoinPicker(10)" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join Open Group</button>';
+  html += '</div>';
 
   // Teams looking
   var teams = (lineup && lineup.teamsLooking) ? lineup.teamsLooking : [];
