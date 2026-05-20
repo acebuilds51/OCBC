@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.79</title>
+<title>OCBC Golf League v1.80</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.79</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.80</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.79</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.80</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -754,6 +754,38 @@ label:first-child{margin-top:0}
         <div id="captain-entry-rows"></div>
         <button class="btn btn-navy" style="width:100%;margin-top:10px" onclick="saveCaptains()">📅 Save & Publish Lineup</button>
         <div id="captain-save-status" style="margin-top:6px;font-size:12px;color:var(--green-d)"></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:700;margin-bottom:8px">🚪 Set Vacated Captain Info</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Use this to label a slot where a captain gave up their position.</div>
+          <label style="font-size:11px;color:var(--text2)">Slot #</label>
+          <select id="vac-slot-admin" style="width:100%;margin-bottom:8px">
+            <option value="">-- Select slot --</option>
+            <option value="1">Slot 1</option><option value="2">Slot 2</option>
+            <option value="3">Slot 3</option><option value="4">Slot 4</option>
+            <option value="5">Slot 5</option><option value="6">Slot 6</option>
+            <option value="7">Slot 7</option><option value="8">Slot 8</option>
+            <option value="9">Slot 9</option>
+          </select>
+          <label style="font-size:11px;color:var(--text2)">Captain who vacated</label>
+          <select id="vac-name-admin" style="width:100%;margin-bottom:8px">
+            <option value="">-- Select name --</option>
+          </select>
+          <label style="font-size:11px;color:var(--text2)">Reason</label>
+          <select id="vac-reason-admin" style="width:100%;margin-bottom:8px">
+            <option value="Out this week">Out this week</option>
+            <option value="Playing in group 1">Playing in group 1</option>
+            <option value="Playing in group 2">Playing in group 2</option>
+            <option value="Playing in group 3">Playing in group 3</option>
+            <option value="Playing in group 4">Playing in group 4</option>
+            <option value="Playing in group 5">Playing in group 5</option>
+            <option value="Playing in group 6">Playing in group 6</option>
+            <option value="Playing in group 7">Playing in group 7</option>
+            <option value="Playing in group 8">Playing in group 8</option>
+            <option value="Playing in group 9">Playing in group 9</option>
+          </select>
+          <button class="btn btn-secondary" style="width:100%" onclick="adminSetVacated()">💾 Save Vacated Info</button>
+          <div id="vac-admin-status" style="margin-top:6px;font-size:12px;color:var(--green-d)"></div>
+        </div>
       </div>
 
       <div class="card">
@@ -3200,6 +3232,29 @@ async function setVacatedName(slot){
   },50);
 }
 
+async function adminSetVacated(){
+  const db=getDB();const yr=getYear(db);
+  const wk=getLineupWeek(yr);
+  const slot=parseInt(document.getElementById('vac-slot-admin').value);
+  const name=document.getElementById('vac-name-admin').value;
+  const reason=document.getElementById('vac-reason-admin').value;
+  const statusEl=document.getElementById('vac-admin-status');
+  if(!slot){if(statusEl)statusEl.textContent='Please select a slot';return;}
+  if(!name){if(statusEl)statusEl.textContent='Please select a name';return;}
+  if(!yr.weekLineup)yr.weekLineup={};
+  if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
+  if(!yr.weekLineup['upcoming'][slot])yr.weekLineup['upcoming'][slot]={};
+  yr.weekLineup['upcoming'][slot].prevCaptain=name;
+  yr.weekLineup['upcoming'][slot].vacateReason=reason;
+  yr.weekLineup['upcoming'][slot].captainVacated=true;
+  yr.weekLineup['upcoming'][slot].captain='';
+  yr.weekLineup['upcoming'][slot].members=[];
+  saveDB(db);
+  await syncLineup(wk);
+  if(statusEl)statusEl.textContent='✓ Saved: Slot '+slot+' — '+name+' ('+reason+')';
+  showToast('Vacated info saved ✓');
+}
+
 function getLineupWeek(yr){
   // Lineup is always for the NEXT upcoming week
   const curWk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek||1;
@@ -3222,6 +3277,12 @@ function initCaptainEntry(){
   const wk=getLineupWeek(yr); // next week
   const el=document.getElementById('captain-entry-rows');
   if(!el)return;
+  // Populate vacated name dropdown
+  const vacNameEl=document.getElementById('vac-name-admin');
+  if(vacNameEl){
+    vacNameEl.innerHTML='<option value="">-- Select name --</option>'+
+      (db.players||[]).slice().sort().map(function(p){return '<option value="'+p+'">'+p+'</option>';}).join('');
+  }
   // Load existing lineup for this week
   const lineup=yr.weekLineup&&yr.weekLineup[wk]?yr.weekLineup[wk]:{};
   const rows=[1,2,3,4,5,6,7,8,9].map(slot=>{
