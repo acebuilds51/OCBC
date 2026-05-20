@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.71</title>
+<title>OCBC Golf League v1.72</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.71</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.72</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.71</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.72</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3194,7 +3194,7 @@ function showJoinPicker(slot){
   // Get already-taken players
   var lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
   var taken={};
-  for(var s=1;s<=9;s++){
+  for(var s=1;s<=10;s++){
     var grp=lineup[s]||{};
     var mbs=grp.members||[];
     for(var mi=0;mi<mbs.length;mi++) taken[mbs[mi]]=s;
@@ -3252,7 +3252,7 @@ async function confirmJoin(){
   if(group.members.length>=4){if(errEl)errEl.textContent='This group is full';return;}
   // Remove non-subs from other groups (subs can play multiple groups)
   if(!isSub){
-    for(var s=1;s<=9;s++){
+    for(var s=1;s<=10;s++){
       if(s!==slot&&yr.weekLineup['upcoming'][s]){
         var otherGroup=yr.weekLineup['upcoming'][s];
         otherGroup.members=(otherGroup.members||[]).filter(function(m){return m!==n;});
@@ -3450,7 +3450,7 @@ async function confirmRestoreCaptain(){
   var lineup=yr.weekLineup['upcoming'];
 
   // Remove captain from wherever they currently are
-  for(var s=1;s<=9;s++){
+  for(var s=1;s<=10;s++){
     if(lineup[s]){
       lineup[s].members=(lineup[s].members||[]).filter(function(m){return m!==captain;});
       if(lineup[s].captain===captain){lineup[s].captain='';lineup[s].captainVacated=false;}
@@ -3461,7 +3461,7 @@ async function confirmRestoreCaptain(){
   lineup.teamsLooking=(lineup.teamsLooking||[]).filter(function(t){return t.p1!==captain&&t.p2!==captain;});
 
   // Shift existing slots down from insertAt to make room
-  for(var shift=9;shift>=insertAt+1;shift--){
+  for(var shift=10;shift>=insertAt+1;shift--){
     lineup[shift]=lineup[shift-1]?JSON.parse(JSON.stringify(lineup[shift-1])):{members:[],captain:'',captainVacated:false};
   }
   // Insert captain at the target slot
@@ -3477,17 +3477,20 @@ async function confirmRestoreCaptain(){
 }
 
 function autoCompress(){
-  // Automatically called when captain vacates — compresses filled slots up, empties go to end
+  // Compresses filled slots up, empties go to end, slot 10 always stays open
   const db=getDB();const yr=getYear(db);
   if(!yr.weekLineup||!yr.weekLineup['upcoming'])return;
   var lineup=yr.weekLineup['upcoming'];
   var filled=[];
-  for(var s=1;s<=9;s++){
+  // Slots 1-9: compress captained groups
+  for(var s=1;s<=10;s++){
     var grp=lineup[s]||{};
     var hasContent=(grp.members&&grp.members.length>0)||(grp.captain&&!grp.captainVacated);
     if(hasContent) filled.push(JSON.parse(JSON.stringify(grp)));
   }
-  // Rebuild: filled slots first, empty slots after
+  // Slot 10: preserve as overflow (non-captain group)
+  var slot10=lineup[10]?JSON.parse(JSON.stringify(lineup[10])):{members:[],captain:'',captainVacated:false};
+  // Rebuild slots 1-9: filled first, then empty
   for(var fi=0;fi<9;fi++){
     if(fi<filled.length){
       lineup[fi+1]=filled[fi];
@@ -3495,40 +3498,14 @@ function autoCompress(){
       lineup[fi+1]={members:[],captain:'',captainVacated:false};
     }
   }
+  // Slot 10 always available for overflow groups
+  lineup[10]=slot10;
 }
 
 function reorderLineup(){
-  // When called, compress filled slots to the top and push empty/vacated to end
   const db=getDB();const yr=getYear(db);
   if(!yr.weekLineup||!yr.weekLineup['upcoming'])return;
-  var lineup=yr.weekLineup['upcoming'];
-  // Separate filled groups from empty/vacated
-  var filled=[];
-  var empty=[];
-  for(var s=1;s<=9;s++){
-    var grp=lineup[s]||{};
-    var hasMembers=(grp.members&&grp.members.length>0);
-    var hasCaptain=grp.captain&&!grp.captainVacated;
-    if(hasMembers||hasCaptain){
-      filled.push({data:grp,oldSlot:s});
-    } else {
-      empty.push({data:grp,oldSlot:s});
-    }
-  }
-  // Rebuild slots: filled first, then empty
-  var newLineup={};
-  // Preserve non-slot keys
-  var preserveKeys=['available','notPlaying','playersLooking','teamsLooking'];
-  for(var ki=0;ki<preserveKeys.length;ki++){
-    if(lineup[preserveKeys[ki]]) newLineup[preserveKeys[ki]]=lineup[preserveKeys[ki]];
-  }
-  for(var fi=0;fi<filled.length;fi++){
-    newLineup[fi+1]=filled[fi].data;
-  }
-  for(var ei=0;ei<empty.length;ei++){
-    newLineup[filled.length+ei+1]={members:[],captain:'',captainVacated:false};
-  }
-  yr.weekLineup['upcoming']=newLineup;
+  autoCompress();
   saveDB(db);
   showToast('Tee times reordered ✓');
 }
@@ -3696,14 +3673,20 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
 
   // Header
   html += '<div style="font-size:13px;font-weight:700;color:var(--navy);padding:8px 0 4px">Week '+wk+' Tee Times — Thursdays from 5:10pm</div>';
+  html += '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Slots 1-9 = assigned tee times · Slot 10 = open group (any 4 players)</div>';
 
   // 9 tee time slots
-  for(var slot=1;slot<=9;slot++){
-    var mins = (slot-1)*7;
-    var totalMins = 17*60+10+mins;
-    var h = Math.floor(totalMins/60);
-    var m = totalMins%60;
-    var teeStr = (h>12?h-12:h)+':'+(m<10?'0':'')+m+'pm';
+  for(var slot=1;slot<=10;slot++){
+    var teeStr='';
+    if(slot<=9){
+      var mins=(slot-1)*7;
+      var totalMins=17*60+10+mins;
+      var h=Math.floor(totalMins/60);
+      var m=totalMins%60;
+      teeStr=(h>12?h-12:h)+':'+(m<10?'0':'')+m+'pm';
+    } else {
+      teeStr='Open Group';
+    }
     var group = (lineup && lineup[slot]) ? lineup[slot] : {};
     var captain = group.captain || '';
     var members = group.members || [];
@@ -3782,7 +3765,7 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
 
   // No response
   var accounted = {};
-  for(var s=1;s<=9;s++){
+  for(var s=1;s<=10;s++){
     var grp = (lineup && lineup[s]) ? lineup[s] : {};
     var mbs = grp.members || [];
     for(var mi2=0;mi2<mbs.length;mi2++) accounted[mbs[mi2]]=1;
