@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.83</title>
+<title>OCBC Golf League v1.84</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.83</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.84</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.83</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.84</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3968,21 +3968,41 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     html += '</div>';
   }
 
-  // Fill empty slots to always show 9 real groups
+  // Fill empty slots to always show 9 real groups — with join buttons
+  var extraSlot=9; // use slot 9+ data for extra empty slots
   while(displayCounter<9){
     displayCounter++;
+    var fSlot=9-(9-displayCounter); // map to actual data slot
     var fMins=(displayCounter-1)*7;
     var fTotal=17*60+10+fMins;
     var fH=Math.floor(fTotal/60);var fM=fTotal%60;
     var fTeeStr=(fH>12?fH-12:fH)+':'+(fM<10?'0':'')+fM+'pm';
-    html += '<div class="card" style="margin-bottom:8px;opacity:0.6">';
+    // Use a unique slot index for these overflow groups (slot 90+displayCounter to avoid conflicts)
+    var overflowSlot=90+displayCounter;
+    var overflowGrp=(lineup&&lineup[overflowSlot])?lineup[overflowSlot]:{members:[],captain:''};
+    var overflowMembers=overflowGrp.members||[];
+    var overflowOpen=4-overflowMembers.length;
+    html += '<div class="card" style="margin-bottom:8px">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center">';
     html += '<div style="display:flex;align-items:center;gap:8px">';
     html += '<span class="tee-badge">'+displayCounter+'</span>';
     html += '<div><div style="font-weight:700;font-size:13px">'+fTeeStr+'</div>';
     html += '<div style="font-size:11px;color:var(--text2)">No captain assigned</div></div></div>';
-    html += '<span style="font-size:11px;color:var(--text2)">4 spots open</span>';
-    html += '</div></div>';
+    if(overflowOpen>0) html += '<span style="font-size:11px;color:var(--text2)">'+overflowOpen+' spot'+(overflowOpen!==1?'s':'')+' open</span>';
+    else html += '<span style="font-size:11px;color:var(--green-d)">Full</span>';
+    html += '</div>';
+    if(overflowMembers.length>0){
+      html += '<div style="margin-top:8px">';
+      for(var fmi=0;fmi<overflowMembers.length;fmi++){
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">';
+        html += '<span style="font-size:13px">'+overflowMembers[fmi]+'</span>';
+        html += '<button onclick="removeMemberFromSlot('+overflowSlot+','+fmi+')" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px 6px">✕ Remove</button>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    if(overflowOpen>0) html += '<button onclick="showJoinPicker('+overflowSlot+')" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join This Group</button>';
+    html += '</div>';
   }
 
   // Always show an Open Group card at the end for non-captain groups
