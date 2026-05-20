@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.80</title>
+<title>OCBC Golf League v1.81</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.80</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.81</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.80</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.81</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -2392,7 +2392,49 @@ function renderPlayers(){
   const db=getDB();
   const el=document.getElementById('adm-players');if(!el)return;
   const players=[...db.players].sort();
-  el.innerHTML=players.map(p=>'<div class="player-row"><span>'+p+'</span></div>').join('');
+  el.innerHTML=players.map((p,i)=>{
+    const idx=db.players.indexOf(p);
+    return '<div class="player-row" style="display:flex;align-items:center;gap:6px">'+
+      '<span style="flex:1;font-size:13px">'+p+'</span>'+
+      '<button onclick="editPlayerName(this.dataset.name)" data-name="'+p.replace(/"/g,"&quot;")+'" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--white);cursor:pointer;color:var(--navy)">✏️ Edit</button>'+
+      '</div>';
+  }).join('');
+}
+
+function editPlayerName(oldName){
+  const db=getDB();
+  const newName=prompt('Edit name for "'+oldName+'":',oldName);
+  if(!newName||!newName.trim()||newName.trim()===oldName)return;
+  const n=newName.trim();
+  // Check for duplicates
+  if(db.players.includes(n)){showToast(n+' already exists in roster');return;}
+  // Update in players array
+  const idx=db.players.indexOf(oldName);
+  if(idx>=0) db.players[idx]=n;
+  // Update in lineup if present
+  if(db.years){
+    Object.values(db.years).forEach(yr=>{
+      if(yr.weeks) yr.weeks.forEach(wk=>{
+        if(wk.players) wk.players.forEach(pl=>{if(pl.name===oldName)pl.name=n;});
+      });
+      if(yr.weekLineup&&yr.weekLineup['upcoming']){
+        const lu=yr.weekLineup['upcoming'];
+        for(var s=1;s<=10;s++){
+          if(lu[s]){
+            if(lu[s].captain===oldName) lu[s].captain=n;
+            if(lu[s].prevCaptain===oldName) lu[s].prevCaptain=n;
+            lu[s].members=(lu[s].members||[]).map(m=>m===oldName?n:m);
+          }
+        }
+        if(lu.notPlaying) lu.notPlaying=lu.notPlaying.map(m=>m===oldName?n:m);
+        if(lu.playersLooking) lu.playersLooking=lu.playersLooking.map(m=>m===oldName?n:m);
+        if(lu.teamsLooking) lu.teamsLooking=lu.teamsLooking.map(t=>({p1:t.p1===oldName?n:t.p1,p2:t.p2===oldName?n:t.p2}));
+      }
+    });
+  }
+  saveDB(db);
+  renderPlayers();
+  showToast(oldName+' → '+n+' ✓');
 }
 function saveWeekCfg(){
   saveSeasonSettings();
@@ -3347,20 +3389,27 @@ function showJoinPicker(slot){
   // Get already-taken players
   var lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
   var taken={};
+  var captains={};
   for(var s=1;s<=10;s++){
     var grp=lineup[s]||{};
     var mbs=grp.members||[];
     for(var mi=0;mi<mbs.length;mi++) taken[mbs[mi]]=s;
+    if(grp.captain) captains[grp.captain]=s;
   }
-  // Build options - show all players, mark taken ones
+  // Build options - captains are selectable but labeled, non-captains in other groups disabled
   var opts='<option value="">-- Select your name --</option>';
   opts+='<option value="__SUB__">➕ Add a Sub (enter name)</option>';
   var players=(db.players||[]).slice().sort();
   for(var pi=0;pi<players.length;pi++){
     var p=players[pi];
     var inSlot=taken[p];
-    var disabled=inSlot&&inSlot!==slot?'disabled':'';
-    var label=p+(inSlot?' (in T'+inSlot+')':'');
+    var isCaptainElsewhere=captains[p]&&captains[p]!==slot;
+    // Captains of other slots can join (will vacate their slot) — NOT disabled
+    // Regular members of other slots are disabled
+    var disabled=(inSlot&&inSlot!==slot&&!isCaptainElsewhere)?'disabled':'';
+    var label=p;
+    if(isCaptainElsewhere) label+=' (Captain of T'+captains[p]+' — will vacate)';
+    else if(inSlot&&inSlot!==slot) label+=' (in T'+inSlot+')';
     opts+='<option value="'+p+'" '+disabled+'>'+label+'</option>';
   }
   nameEl.innerHTML=opts;
