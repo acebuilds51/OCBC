@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.73</title>
+<title>OCBC Golf League v1.77</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.73</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.77</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.73</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.77</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -440,6 +440,10 @@ label:first-child{margin-top:0}
     <!-- Action buttons -->
     <div style="padding:8px 15px 0;display:flex;flex-direction:column;gap:6px">
       <button class="btn btn-secondary" style="font-size:13px;text-align:left;padding:10px 14px" onclick="showStatusPicker()">📋 Update My Status for This Week</button>
+      <div id="thisweek-admin-btns" style="display:none;margin-top:4px;flex-direction:column;gap:4px">
+        <button class="btn btn-secondary" style="font-size:12px;padding:8px 14px;width:100%" onclick="showRestoreCaptainPicker()">🔄 Restore / Insert Captain to Slot</button>
+        <button class="btn btn-secondary" style="font-size:12px;padding:8px 14px;width:100%" onclick="adminFixLineupOrder()">🔧 Fix Lineup Order (compress gaps)</button>
+      </div>
 
     </div>
     <div id="status-picker" style="display:none;margin:8px 15px 0;background:var(--white);border:1px solid var(--border);border-radius:var(--rsm);padding:12px">
@@ -3076,6 +3080,42 @@ async function saveEditedRound(){
 
 
 // ── THIS WEEK LINEUP ──────────────────────────────────────────
+async function adminFixLineupOrder(){
+  if(localStorage.getItem('adminUnlocked')!=='true'){showToast('Admin access required');return;}
+  const db=getDB();const yr=getYear(db);
+  const wk=getLineupWeek(yr);
+  if(!yr.weekLineup||!yr.weekLineup['upcoming']){showToast('No lineup data found');return;}
+  // Force compress — treat any slot without a captain as empty
+  var lineup=yr.weekLineup['upcoming'];
+  if(!lineup.vacatedCaptains) lineup.vacatedCaptains=[];
+  var filled=[];
+  for(var s=1;s<=9;s++){
+    var grp=lineup[s]||{};
+    if(grp.captain&&!grp.captainVacated&&grp.members&&grp.members.length>0){
+      filled.push(JSON.parse(JSON.stringify(grp)));
+    } else if(grp.captainVacated&&grp.prevCaptain){
+      var already=lineup.vacatedCaptains.some(function(v){return v.name===grp.prevCaptain;});
+      if(!already) lineup.vacatedCaptains.push({name:grp.prevCaptain,originalSlot:s});
+    }
+  }
+  // Preserve slot 10
+  var slot10=lineup[10]?JSON.parse(JSON.stringify(lineup[10])):{members:[],captain:'',captainVacated:false};
+  // Rebuild slots 1-9
+  for(var fi=0;fi<9;fi++){
+    if(fi<filled.length){
+      lineup[fi+1]=filled[fi];
+    } else {
+      lineup[fi+1]={members:[],captain:'',captainVacated:false,prevCaptain:''};
+    }
+  }
+  lineup[10]=slot10;
+  yr.weekLineup['upcoming']=lineup;
+  saveDB(db);
+  await syncLineup(wk);
+  renderThisWeek();
+  showToast('Lineup order fixed & synced ✓');
+}
+
 async function reorderAndSync(){
   const db=getDB();const yr=getYear(db);
   const wk=getLineupWeek(yr);
@@ -3482,18 +3522,24 @@ async function confirmRestoreCaptain(){
 }
 
 function autoCompress(){
-  // Compresses filled slots up, empties go to end, slot 10 always stays open
+  // Compresses filled slots up, tracks vacated captains, slot 10 always stays open
   const db=getDB();const yr=getYear(db);
   if(!yr.weekLineup||!yr.weekLineup['upcoming'])return;
   var lineup=yr.weekLineup['upcoming'];
+  if(!lineup.vacatedCaptains) lineup.vacatedCaptains=[];
   var filled=[];
-  // Slots 1-9: compress captained groups
-  for(var s=1;s<=10;s++){
+  // Slots 1-9: compress captained groups, track vacated captains
+  for(var s=1;s<=9;s++){
     var grp=lineup[s]||{};
     var hasContent=(grp.members&&grp.members.length>0&&grp.captain&&!grp.captainVacated);
-    if(hasContent) filled.push(JSON.parse(JSON.stringify(grp)));
+    if(hasContent){
+      filled.push(JSON.parse(JSON.stringify(grp)));
+    } else if(grp.captainVacated&&grp.prevCaptain){
+      var alreadyListed=lineup.vacatedCaptains.some(function(v){return v.name===grp.prevCaptain;});
+      if(!alreadyListed) lineup.vacatedCaptains.push({name:grp.prevCaptain,originalSlot:s});
+    }
   }
-  // Slot 10: preserve as overflow (non-captain group)
+  // Slot 10: preserve as overflow
   var slot10=lineup[10]?JSON.parse(JSON.stringify(lineup[10])):{members:[],captain:'',captainVacated:false};
   // Rebuild slots 1-9: filled first, then empty
   for(var fi=0;fi<9;fi++){
@@ -3503,7 +3549,6 @@ function autoCompress(){
       lineup[fi+1]={members:[],captain:'',captainVacated:false,prevCaptain:''};
     }
   }
-  // Slot 10 always available for overflow groups
   lineup[10]=slot10;
 }
 
@@ -3684,10 +3729,23 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
   html += '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Slots 1-9 = assigned tee times · Slot 10 = open group (any 4 players)</div>';
 
   // 9 tee time slots
+  // Pre-calculate how many vacated slots are before each slot
+  // so we can shift both tee times AND display numbers
+  var vacatedBefore=0;
+  var vacatedCount=[];
+  for(var vs=1;vs<=10;vs++){
+    vacatedCount[vs]=vacatedBefore;
+    var vgrp=lineup&&lineup[vs]?lineup[vs]:{};
+    if(vgrp.captainVacated&&!vgrp.captain) vacatedBefore++;
+  }
+
   for(var slot=1;slot<=10;slot++){
     var teeStr='';
+    var displayNum=slot-vacatedCount[slot]; // renumber display position
+    // Shift tee time based on vacated slots before this one
+    var effectiveSlot=slot-vacatedCount[slot];
     if(slot<=9){
-      var mins=(slot-1)*7;
+      var mins=(effectiveSlot-1)*7;
       var totalMins=17*60+10+mins;
       var h=Math.floor(totalMins/60);
       var m=totalMins%60;
@@ -3699,15 +3757,24 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     var captain = group.captain || '';
     var members = group.members || [];
     var vacated = group.captainVacated && !captain;
+    var prevCap = group.prevCaptain || '';
+
+    // Vacated slot — thin dashed line
+    if(vacated){
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:6px;background:var(--bg);border:1px dashed var(--border);border-radius:var(--rsm);opacity:0.75">';
+      html += '<span style="font-size:11px;font-weight:700;color:var(--text2);min-width:20px">'+slot+' →</span>';
+      html += '<span style="font-size:11px;color:var(--text2)">'+teeStr+'</span>';
+      html += '<span style="font-size:11px;color:var(--red);margin-left:4px">&#x1F6AA; '+(prevCap?prevCap:'Captain')+' vacated</span>';
+      html += '</div>';
+      continue;
+    }
 
     html += '<div class="card" style="margin-bottom:8px">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center">';
     html += '<div style="display:flex;align-items:center;gap:8px">';
-    html += '<span class="tee-badge">'+slot+'</span>';
+    html += '<span class="tee-badge">'+displayNum+'</span>';
     html += '<div><div style="font-weight:700;font-size:13px">'+teeStr+'</div>';
-    var prevCap=group.prevCaptain?group.prevCaptain:'';
-    if(vacated) html += '<div style="font-size:11px;color:var(--red)">⚠️ '+(prevCap?prevCap+' vacated this slot':'Captain vacated slot')+'</div>';
-    else if(!captain) html += '<div style="font-size:11px;color:var(--text2)">No captain assigned</div>';
+    if(!captain) html += '<div style="font-size:11px;color:var(--text2)">No captain assigned</div>';
     html += '</div></div>';
     var open = 4 - members.length;
     if(open > 0) html += '<span style="font-size:11px;color:var(--text2)">'+open+' spot'+(open!==1?'s':'')+' open</span>';
