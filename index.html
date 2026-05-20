@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.72</title>
+<title>OCBC Golf League v1.73</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.72</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.73</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.72</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.73</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3098,6 +3098,7 @@ async function removeMemberFromSlot(slot, memberIdx){
   group.members=group.members.filter(function(m,i){return i!==memberIdx;});
   // If captain removed, clear captain
   if(group.captain===name){
+    group.prevCaptain=name;
     group.captain='';
     group.captainVacated=false;
     autoCompress();
@@ -3257,8 +3258,11 @@ async function confirmJoin(){
         var otherGroup=yr.weekLineup['upcoming'][s];
         otherGroup.members=(otherGroup.members||[]).filter(function(m){return m!==n;});
         if(otherGroup.captain===n){
+          otherGroup.prevCaptain=otherGroup.captain;
           otherGroup.captainVacated=true;
           otherGroup.captain='';
+          otherGroup.members=[];
+          autoCompress();
         }
       }
     }
@@ -3377,6 +3381,7 @@ async function saveMyStatus(){
         lineup[s].members=(lineup[s].members||[]).filter(m=>m!==name);
         // If captain is not playing, clear and compress
         if(lineup[s].captain===name){
+          lineup[s].prevCaptain=lineup[s].captain;
           lineup[s].captainVacated=true;
           lineup[s].captain='';
           lineup[s].members=[];
@@ -3485,7 +3490,7 @@ function autoCompress(){
   // Slots 1-9: compress captained groups
   for(var s=1;s<=10;s++){
     var grp=lineup[s]||{};
-    var hasContent=(grp.members&&grp.members.length>0)||(grp.captain&&!grp.captainVacated);
+    var hasContent=(grp.members&&grp.members.length>0&&grp.captain&&!grp.captainVacated);
     if(hasContent) filled.push(JSON.parse(JSON.stringify(grp)));
   }
   // Slot 10: preserve as overflow (non-captain group)
@@ -3495,7 +3500,7 @@ function autoCompress(){
     if(fi<filled.length){
       lineup[fi+1]=filled[fi];
     } else {
-      lineup[fi+1]={members:[],captain:'',captainVacated:false};
+      lineup[fi+1]={members:[],captain:'',captainVacated:false,prevCaptain:''};
     }
   }
   // Slot 10 always available for overflow groups
@@ -3614,8 +3619,11 @@ async function saveSlotFoursome(slot){
         otherGroup.members=(otherGroup.members||[]).filter(m=>m!==name);
         // If this player was captain of another slot, mark that slot as needing a captain
         if(otherGroup.captain===name){
+          otherGroup.prevCaptain=otherGroup.captain;
           otherGroup.captainVacated=true;
-          otherGroup.captain=''; // clear captain
+          otherGroup.captain='';
+          otherGroup.members=[];
+          autoCompress();
         }
       }
     });
@@ -3697,7 +3705,8 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     html += '<div style="display:flex;align-items:center;gap:8px">';
     html += '<span class="tee-badge">'+slot+'</span>';
     html += '<div><div style="font-weight:700;font-size:13px">'+teeStr+'</div>';
-    if(vacated) html += '<div style="font-size:11px;color:var(--red)">⚠️ Captain vacated slot</div>';
+    var prevCap=group.prevCaptain?group.prevCaptain:'';
+    if(vacated) html += '<div style="font-size:11px;color:var(--red)">⚠️ '+(prevCap?prevCap+' vacated this slot':'Captain vacated slot')+'</div>';
     else if(!captain) html += '<div style="font-size:11px;color:var(--text2)">No captain assigned</div>';
     html += '</div></div>';
     var open = 4 - members.length;
