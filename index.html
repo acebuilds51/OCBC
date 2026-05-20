@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.77</title>
+<title>OCBC Golf League v1.79</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.77</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.79</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.77</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.79</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3139,6 +3139,7 @@ async function removeMemberFromSlot(slot, memberIdx){
   // If captain removed, clear captain
   if(group.captain===name){
     group.prevCaptain=name;
+    group.vacateReason='Removed from slot';
     group.captain='';
     group.captainVacated=false;
     autoCompress();
@@ -3147,6 +3148,56 @@ async function removeMemberFromSlot(slot, memberIdx){
   await syncLineup(wk);
   renderThisWeek();
   showToast(name+' removed from Tee Time '+slot);
+}
+
+async function setVacatedName(slot){
+  const db=getDB();const yr=getYear(db);
+  if(localStorage.getItem('adminUnlocked')!=='true'){showToast('Admin access required');return;}
+  var players=(db.players||[]).slice().sort();
+  var nameOpts=players.map(function(p){return '<option value="'+p+'">'+p+'</option>';}).join('');
+  var reasonOpts=[
+    '<option value="Out this week">Out this week</option>',
+    '<option value="Playing in group 1">Playing in group 1</option>',
+    '<option value="Playing in group 2">Playing in group 2</option>',
+    '<option value="Playing in group 3">Playing in group 3</option>',
+    '<option value="Playing in group 4">Playing in group 4</option>',
+    '<option value="Playing in group 5">Playing in group 5</option>',
+    '<option value="Playing in group 6">Playing in group 6</option>',
+    '<option value="Playing in group 7">Playing in group 7</option>',
+    '<option value="Playing in group 8">Playing in group 8</option>',
+    '<option value="Playing in group 9">Playing in group 9</option>'
+  ].join('');
+  var container=document.createElement('div');
+  container.innerHTML=
+    '<label style="font-size:12px;color:#666;display:block;margin-top:10px">Captain who vacated:</label>'+
+    '<select id="vac-name-sel" style="width:100%;padding:8px;font-size:14px;margin-top:4px">'+
+    '<option value="">-- Select name --</option>'+nameOpts+'</select>'+
+    '<label style="font-size:12px;color:#666;display:block;margin-top:10px">Reason:</label>'+
+    '<select id="vac-reason-sel" style="width:100%;padding:8px;font-size:14px;margin-top:4px">'+
+    reasonOpts+'</select>';
+  doConfirm(
+    'Who vacated Slot '+slot+'?',
+    'Set the captain and reason for vacating.',
+    function(){
+      var nameEl=document.getElementById('vac-name-sel');
+      var reasonEl=document.getElementById('vac-reason-sel');
+      var name=nameEl?nameEl.value:'';
+      var reason=reasonEl?reasonEl.value:'';
+      if(!name){showToast('Please select a name');return;}
+      if(!yr.weekLineup||!yr.weekLineup['upcoming'])return;
+      if(!yr.weekLineup['upcoming'][slot])yr.weekLineup['upcoming'][slot]={captainVacated:true};
+      yr.weekLineup['upcoming'][slot].prevCaptain=name;
+      yr.weekLineup['upcoming'][slot].vacateReason=reason;
+      saveDB(db);
+      syncLineup(getLineupWeek(yr));
+      renderThisWeek();
+      showToast(name+' · '+reason+' ✓');
+    }
+  );
+  setTimeout(function(){
+    var msg=document.querySelector('.confirm-msg');
+    if(msg) msg.appendChild(container);
+  },50);
 }
 
 function getLineupWeek(yr){
@@ -3299,6 +3350,7 @@ async function confirmJoin(){
         otherGroup.members=(otherGroup.members||[]).filter(function(m){return m!==n;});
         if(otherGroup.captain===n){
           otherGroup.prevCaptain=otherGroup.captain;
+          otherGroup.vacateReason='Playing in group '+slot;
           otherGroup.captainVacated=true;
           otherGroup.captain='';
           otherGroup.members=[];
@@ -3422,6 +3474,7 @@ async function saveMyStatus(){
         // If captain is not playing, clear and compress
         if(lineup[s].captain===name){
           lineup[s].prevCaptain=lineup[s].captain;
+          lineup[s].vacateReason='Out this week';
           lineup[s].captainVacated=true;
           lineup[s].captain='';
           lineup[s].members=[];
@@ -3762,9 +3815,23 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     // Vacated slot — thin dashed line
     if(vacated){
       html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:6px;background:var(--bg);border:1px dashed var(--border);border-radius:var(--rsm);opacity:0.75">';
-      html += '<span style="font-size:11px;font-weight:700;color:var(--text2);min-width:20px">'+slot+' →</span>';
+      html += '<span style="font-size:11px;font-weight:700;color:var(--text2);min-width:24px">'+slot+' →</span>';
       html += '<span style="font-size:11px;color:var(--text2)">'+teeStr+'</span>';
-      html += '<span style="font-size:11px;color:var(--red);margin-left:4px">&#x1F6AA; '+(prevCap?prevCap:'Captain')+' vacated</span>';
+      var vacateReason=group.vacateReason||'';
+      if(prevCap){
+        html += '<span style="font-size:11px;color:var(--red);margin-left:6px">🚪 '+prevCap+' vacated';
+        if(vacateReason) html += ' <span style="color:var(--text2)">· '+vacateReason+'</span>';
+        html += '</span>';
+      } else {
+        // No name stored yet — show editable field for admin
+        var isAdmin2=localStorage.getItem('adminUnlocked')==='true';
+        if(isAdmin2){
+          html += '<span style="font-size:11px;color:var(--red);margin-left:6px">🚪 Captain vacated</span>';
+          html += '<button onclick="setVacatedName('+slot+')" style="font-size:10px;margin-left:8px;padding:2px 6px;border:1px solid var(--red);border-radius:4px;background:none;color:var(--red);cursor:pointer">Set name</button>';
+        } else {
+          html += '<span style="font-size:11px;color:var(--red);margin-left:6px">🚪 Captain vacated</span>';
+        }
+      }
       html += '</div>';
       continue;
     }
