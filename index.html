@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.82</title>
+<title>OCBC Golf League v1.83</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.82</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.83</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.82</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.83</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3902,45 +3902,46 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     if(vgrp.captainVacated&&!vgrp.captain) vacatedBefore++;
   }
 
-  for(var slot=1;slot<=9;slot++){  // slot 10 (Open Group) rendered separately below
-    var teeStr='';
-    var displayNum=slot-vacatedCount[slot]; // renumber display position
-    var effectiveSlot=slot-vacatedCount[slot];
-    // All slots 1-10 get a real tee time based on their effective position
-    var mins=(effectiveSlot-1)*7;
-    var totalMins=17*60+10+mins;
-    var h=Math.floor(totalMins/60);
-    var m=totalMins%60;
-    teeStr=(h>12?h-12:h)+':'+(m<10?'0':'')+m+'pm';
-    var group = (lineup && lineup[slot]) ? lineup[slot] : {};
-    var captain = group.captain || '';
-    var members = group.members || [];
-    var vacated = group.captainVacated && !captain;
-    var prevCap = group.prevCaptain || '';
+    // Render all 9 slots + vacated thin lines, always show 9 real groups
+  var displayCounter=0;
+  for(var slot=1;slot<=9;slot++){
+    var group=(lineup&&lineup[slot])?lineup[slot]:{};
+    var captain=group.captain||'';
+    var members=group.members||[];
+    var vacated=group.captainVacated&&!captain;
+    var prevCap=group.prevCaptain||'';
+    var vacateReason=group.vacateReason||'';
 
-    // Vacated slot — thin dashed line
     if(vacated){
+      // Thin line — original slot tee time
+      var vMins=(slot-1)*7;
+      var vTotal=17*60+10+vMins;
+      var vH=Math.floor(vTotal/60);var vM=vTotal%60;
+      var vTeeStr=(vH>12?vH-12:vH)+':'+(vM<10?'0':'')+vM+'pm';
       html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 12px;margin-bottom:6px;background:var(--bg);border:1px dashed var(--border);border-radius:var(--rsm);opacity:0.75">';
       html += '<span style="font-size:11px;font-weight:700;color:var(--text2);min-width:24px">'+slot+' →</span>';
-      html += '<span style="font-size:11px;color:var(--text2)">'+teeStr+'</span>';
-      var vacateReason=group.vacateReason||'';
+      html += '<span style="font-size:11px;color:var(--text2)">'+vTeeStr+'</span>';
       if(prevCap){
         html += '<span style="font-size:11px;color:var(--red);margin-left:6px">🚪 '+prevCap+' vacated';
         if(vacateReason) html += ' <span style="color:var(--text2)">· '+vacateReason+'</span>';
         html += '</span>';
       } else {
-        // No name stored yet — show editable field for admin
-        var isAdmin2=localStorage.getItem('adminUnlocked')==='true';
-        if(isAdmin2){
-          html += '<span style="font-size:11px;color:var(--red);margin-left:6px">🚪 Captain vacated</span>';
-          html += '<button onclick="setVacatedName('+slot+')" style="font-size:10px;margin-left:8px;padding:2px 6px;border:1px solid var(--red);border-radius:4px;background:none;color:var(--red);cursor:pointer">Set name</button>';
-        } else {
-          html += '<span style="font-size:11px;color:var(--red);margin-left:6px">🚪 Captain vacated</span>';
-        }
+        var isAdminV=localStorage.getItem('adminUnlocked')==='true';
+        html += '<span style="font-size:11px;color:var(--red);margin-left:6px">🚪 Captain vacated</span>';
+        if(isAdminV) html += '<button onclick="setVacatedName('+slot+')" style="font-size:10px;margin-left:8px;padding:2px 6px;border:1px solid var(--red);border-radius:4px;background:none;color:var(--red);cursor:pointer">Set name</button>';
       }
       html += '</div>';
       continue;
     }
+
+    displayCounter++;
+    var mins2=(displayCounter-1)*7;
+    var total2=17*60+10+mins2;
+    var h2=Math.floor(total2/60);var m2=total2%60;
+    var teeStr=(h2>12?h2-12:h2)+':'+(m2<10?'0':'')+m2+'pm';
+    var displayNum=displayCounter;
+    var isAdmin=localStorage.getItem('adminUnlocked')==='true';
+    var open=4-members.length;
 
     html += '<div class="card" style="margin-bottom:8px">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center">';
@@ -3949,34 +3950,39 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     html += '<div><div style="font-weight:700;font-size:13px">'+teeStr+'</div>';
     if(!captain) html += '<div style="font-size:11px;color:var(--text2)">No captain assigned</div>';
     html += '</div></div>';
-    var open = 4 - members.length;
-    if(open > 0) html += '<span style="font-size:11px;color:var(--text2)">'+open+' spot'+(open!==1?'s':'')+' open</span>';
+    if(open>0) html += '<span style="font-size:11px;color:var(--text2)">'+open+' spot'+(open!==1?'s':'')+' open</span>';
     else html += '<span style="font-size:11px;color:var(--green-d)">Full</span>';
     html += '</div>';
-
-    if(members.length > 0){
+    if(members.length>0){
       html += '<div style="margin-top:8px">';
-      var isAdmin=localStorage.getItem('adminUnlocked')==='true';
       for(var mi=0;mi<members.length;mi++){
-        var m2 = members[mi];
-        var isCap = m2===captain;
+        var m3=members[mi];var isCap=m3===captain;
         html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">';
-        html += '<span style="font-size:13px">'+m2;
-        if(isCap) html += ' <span style="font-size:10px;background:var(--navy);color:#fff;padding:1px 5px;border-radius:10px">Captain</span>';
-        html += '</span>';
-        // Allow removal: anyone can remove themselves, admin can remove anyone
-        if(isAdmin || !isCap){
-          html += '<button onclick="removeMemberFromSlot('+slot+','+mi+')" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px 6px">✕ Remove</button>';
-        }
+        html += '<span style="font-size:13px">'+m3+(isCap?' <span style="font-size:10px;background:var(--navy);color:#fff;padding:1px 5px;border-radius:10px">Captain</span>':'')+'</span>';
+        if(isAdmin||!isCap) html += '<button onclick="removeMemberFromSlot('+slot+','+mi+')" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px 6px">✕ Remove</button>';
         html += '</div>';
       }
       html += '</div>';
     }
-
-    if(open > 0){
-      html += '<button onclick="showJoinPicker('+slot+')" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join This Group</button>';
-    }
+    if(open>0) html += '<button onclick="showJoinPicker('+slot+')" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join This Group</button>';
     html += '</div>';
+  }
+
+  // Fill empty slots to always show 9 real groups
+  while(displayCounter<9){
+    displayCounter++;
+    var fMins=(displayCounter-1)*7;
+    var fTotal=17*60+10+fMins;
+    var fH=Math.floor(fTotal/60);var fM=fTotal%60;
+    var fTeeStr=(fH>12?fH-12:fH)+':'+(fM<10?'0':'')+fM+'pm';
+    html += '<div class="card" style="margin-bottom:8px;opacity:0.6">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+    html += '<div style="display:flex;align-items:center;gap:8px">';
+    html += '<span class="tee-badge">'+displayCounter+'</span>';
+    html += '<div><div style="font-weight:700;font-size:13px">'+fTeeStr+'</div>';
+    html += '<div style="font-size:11px;color:var(--text2)">No captain assigned</div></div></div>';
+    html += '<span style="font-size:11px;color:var(--text2)">4 spots open</span>';
+    html += '</div></div>';
   }
 
   // Always show an Open Group card at the end for non-captain groups
