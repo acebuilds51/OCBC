@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.89</title>
+<title>OCBC Golf League v1.91</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.89</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.91</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.89</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.91</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -972,7 +972,7 @@ function isRainoutWeek(yr){
 
 // ── STATE ────────────────────────────────────────────────────
 // ── HARDCODED SHEET URL — update this when Apps Script is redeployed ──
-const SHEET_URL='https://script.google.com/macros/s/AKfycby8GAg8ma6k5aY2oHYKbHPf3jZCgrBA3dQVB9Tv_eT3h1EBo-kPbirIQHfdMEapHzRkOA/exec';
+const SHEET_URL='https://script.google.com/macros/s/AKfycbzrMu_g6aDrpUI9m0w6SkPxipXGK9dfpsulVUlku5oVb3Bw5piZrDCAsSgUCfrJjbW4oQ/exec';
 
 let ST={players:[],p5:null,holeIdx:0,scores:[],ctpWinners:{},p5scores:[],presses:[],awins:0,bwins:0};
 
@@ -3477,17 +3477,25 @@ async function saveCaptains(){
   const wk=getLineupWeek(yr); // save for next week
   if(!yr.weekLineup)yr.weekLineup={};
   if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
+  // Start fresh — clear all member data, status lists for the new week
+  yr.weekLineup['upcoming']={
+    notPlaying:[],
+    playersLooking:[],
+    teamsLooking:[],
+    vacatedCaptains:[],
+    available:[]
+  };
+  // Set captains only — members will join themselves
   [1,2,3,4,5,6,7,8,9].forEach(slot=>{
     const sel=document.getElementById('cap-slot-'+slot);
-    if(sel){
-      const cap=sel.value;
-      if(!yr.weekLineup['upcoming'][slot])yr.weekLineup['upcoming'][slot]={members:[],available:[]};
-      yr.weekLineup['upcoming'][slot].captain=cap;
-      // Keep existing members but update captain slot
-      if(cap&&!yr.weekLineup['upcoming'][slot].members.includes(cap)){
-        yr.weekLineup['upcoming'][slot].members=[cap,...yr.weekLineup['upcoming'][slot].members.filter(m=>m!==cap)];
-      }
-    }
+    const cap=sel?sel.value:'';
+    yr.weekLineup['upcoming'][slot]={
+      captain:cap,
+      members:cap?[cap]:[],
+      captainVacated:false,
+      prevCaptain:'',
+      vacateReason:''
+    };
   });
   saveDB(db);
   const statusEl=document.getElementById('captain-save-status');
