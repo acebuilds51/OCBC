@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.85</title>
+<title>OCBC Golf League v1.87</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.85</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.87</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.85</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.87</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -260,6 +260,11 @@ label:first-child{margin-top:0}
     <button class:10px;font-size:14px" onclick="showTab('leaderboard')">📊 Leaderboard &amp; Averages</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('history')">📅 Season History</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('thisweek')">📅 This Week's Lineup</button>
+    <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="toggleRoster()">👥 Member Roster</button>
+    <div id="roster-section" style="display:none;margin-top:10px">
+      <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">OCBC Golf League — Member Roster</div>
+      <div id="roster-list"></div>
+    </div>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('ctp')">🎯 CTP Leaderboard</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('skins')">💰 Skins Leaderboard</button>
 
@@ -789,6 +794,14 @@ label:first-child{margin-top:0}
       </div>
 
       <div class="card">
+        <div class="card-title">👥 Roster Contact Info</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Add phone and email for each player. Visible to all members on the home screen.</p>
+        <div id="roster-contact-rows"></div>
+        <button class="btn btn-navy" style="width:100%;margin-top:10px" onclick="saveRosterContacts()">💾 Save & Publish Contacts</button>
+        <div id="roster-contact-status" style="font-size:12px;color:var(--green-d);margin-top:6px"></div>
+      </div>
+
+      <div class="card">
         <div class="card-title">💰 Season Money Leaderboard</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Visible to commissioner only.</p>
         <div id="admin-money-lb"></div>
@@ -901,7 +914,7 @@ function saveDB(db){localStorage.setItem('ocbcgl4',JSON.stringify(db));}
 function mkDB(){
   const yr=new Date().getFullYear().toString();
   return{
-    players:["Bob Pfiefer", "Bob Sanders", "Brian Sanders", "Chris Brady", "Chuck Geis", "Chuck Steinmetz", "Curtis Uren", "Dan Sulisz", "Doug Currie", "Doug Young", "Eric Smith", "Greg Keller", "Herb Freibe", "Jeff Jarvis", "Jeff Landry", "Jim Fields", "Joe Boyle", "Joe Leininger", "Joe Szydlowski", "John Arthurs", "John Dent", "John Mariani", "John Powers", "Kris Mclogan", "Mike Dentamaro", "Nate Edmonds", "Nemo Yaldo", "Pete Harrop", "Rick Kincaid", "Sam Shanbom", "Steve Shepard", "Steve Tomba", "Todd Mack", "Tom Fields", "Tony Edmonds", "Vince Santavicia"],
+    players:["Bob Pfiefer", "Bob Sanders", "Brian Sanders", "Chris Brady", "Chuck Geis", "Chuck Steinmetz", "Curtis Uren", "Dan Sulisz", "Doug Currie", "Doug Young", "Eric Smith", "Gregg Keller", "Herb Freibe", "Jeff Jarvis", "Jeff Landry", "Jim Fields", "Joe Boyle", "Joe Leininger", "Joe Szydlowski", "John Arthurs", "John Dent", "John Mariani", "John Powers", "Kris Mclogan", "Mike Dentamaro", "Nate Edmonds", "Nemo Yaldo", "Pete Harrop", "Rick Kincaid", "Sam Shanbom", "Steve Shepard", "Steve Tomba", "Todd Mack", "Tom Fields", "Tony Edmonds", "Vince Santavicca"],
     subs:[],
     years:{[yr]:{weeks:[],currentWeek:1,currentSide:'front',seasonStartDate:'',leagueDay:4,scrambleWeek:14,scramblePot:0,sideOverride:null,rainouts:[]}},
     activeYear:yr,
@@ -1135,6 +1148,14 @@ function applyConfig(db, yr, cfg){
       yr.weekLineup[wk2]=ll;
     }catch(e){}
   }
+  // Roster contacts
+  const rosterKey='rosterContacts';
+  if(cfg[rosterKey]){
+    try{
+      const rc=typeof cfg[rosterKey]==='string'?JSON.parse(cfg[rosterKey]):cfg[rosterKey];
+      db.rosterContacts=rc;
+    }catch(e){}
+  }
   // Auto-update sheet URL if commissioner has published a new one
   const newUrlKey='sheetUrl_'+db.activeYear;
   if(cfg[newUrlKey]&&cfg[newUrlKey]!==db.sheetUrl){
@@ -1155,6 +1176,45 @@ async function refreshFromSheet(){
 }
 
 // ── HOME ─────────────────────────────────────────────────────
+function toggleRoster(){
+  const sec=document.getElementById('roster-section');
+  if(!sec)return;
+  const isOpen=sec.style.display!=='none';
+  sec.style.display=isOpen?'none':'block';
+  if(!isOpen) renderRoster();
+}
+
+function renderRoster(){
+  const db=getDB();
+  const el=document.getElementById('roster-list');
+  if(!el)return;
+  const roster=db.rosterContacts||{};
+  const players=(db.players||[]).slice().sort();
+  if(!players.length){el.innerHTML='<div style="color:var(--text2);font-size:12px;padding:8px">No players found.</div>';return;}
+
+  var html='<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html+='<tr style="background:var(--navy);color:#fff">';
+  html+='<th style="padding:6px 8px;text-align:left">Name</th>';
+  html+='<th style="padding:6px 8px;text-align:left">Phone</th>';
+  html+='<th style="padding:6px 8px;text-align:left">Email</th>';
+  html+='</tr>';
+  for(var i=0;i<players.length;i++){
+    var p=players[i];
+    var contact=roster[p]||{};
+    var phone=contact.phone||'';
+    var email=contact.email||'';
+    var bg=i%2===0?'var(--white)':'var(--bg)';
+    html+='<tr style="background:'+bg+';border-bottom:1px solid var(--border)">';
+    html+='<td style="padding:6px 8px;font-weight:600">'+p+'</td>';
+    html+='<td style="padding:6px 8px">'+(phone?'<a href="tel:'+phone+'" style="color:var(--navy);text-decoration:none">'+phone+'</a>':'-')+'</td>';
+    html+='<td style="padding:6px 8px">'+(email?'<a href="mailto:'+email+'" style="color:var(--navy);text-decoration:none">'+email+'</a>':'-')+'</td>';
+    html+='</tr>';
+  }
+  html+='</table>';
+  html+='<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:center">Tap a phone number to call · Tap email to compose</div>';
+  el.innerHTML=html;
+}
+
 function renderHome(){
   const db=getDB();const yr=getYear(db);
   const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
@@ -2075,7 +2135,7 @@ function showTab(t){
   if(t==='ctp')renderCTP();
   if(t==='skins')renderSkins();
   if(t==='thisweek')renderThisWeek();
-  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();initSettleWeekSel();initClearLiveWeekSel();initCaptainEntry();}
+  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();initSettleWeekSel();initClearLiveWeekSel();initCaptainEntry();initRosterContacts();}
   window.scrollTo(0,0);
 }
 function hideBnav(){document.getElementById('bnav').style.display='none';}
@@ -3295,6 +3355,59 @@ async function adminSetVacated(){
   await syncLineup(wk);
   if(statusEl)statusEl.textContent='✓ Saved: Slot '+slot+' — '+name+' ('+reason+')';
   showToast('Vacated info saved ✓');
+}
+
+function initRosterContacts(){
+  const db=getDB();
+  const el=document.getElementById('roster-contact-rows');
+  if(!el)return;
+  const roster=db.rosterContacts||{};
+  const players=(db.players||[]).slice().sort();
+  var html='';
+  for(var i=0;i<players.length;i++){
+    var p=players[i];
+    var contact=roster[p]||{};
+    var safeId=p.replace(/[^a-zA-Z0-9]/g,'_');
+    html+='<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">';
+    html+='<div style="font-size:12px;font-weight:700;margin-bottom:4px">'+p+'</div>';
+    html+='<div style="display:flex;gap:6px">';
+    html+='<input type="tel" id="rc-phone-'+safeId+'" placeholder="Phone" value="'+(contact.phone||'')+'" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px">';
+    html+='<input type="email" id="rc-email-'+safeId+'" placeholder="Email" value="'+(contact.email||'')+'" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px">';
+    html+='</div></div>';
+  }
+  el.innerHTML=html;
+}
+
+async function saveRosterContacts(){
+  const db=getDB();
+  const players=(db.players||[]).slice().sort();
+  var roster={};
+  for(var i=0;i<players.length;i++){
+    var p=players[i];
+    var safeId=p.replace(/[^a-zA-Z0-9]/g,'_');
+    var phoneEl=document.getElementById('rc-phone-'+safeId);
+    var emailEl=document.getElementById('rc-email-'+safeId);
+    var phone=phoneEl?phoneEl.value.trim():'';
+    var email=emailEl?emailEl.value.trim():'';
+    if(phone||email) roster[p]={phone:phone,email:email};
+  }
+  db.rosterContacts=roster;
+  saveDB(db);
+  const statusEl=document.getElementById('roster-contact-status');
+  if(db.sheetUrl){
+    try{
+      await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
+        action:'saveConfig',
+        data:{rosterContacts:JSON.stringify(roster)}
+      })});
+      if(statusEl)statusEl.textContent='✓ Contacts saved & synced to all phones';
+      showToast('Roster contacts published ✓');
+    }catch(e){
+      if(statusEl)statusEl.textContent='Saved locally — sheet unreachable';
+    }
+  } else {
+    if(statusEl)statusEl.textContent='✓ Saved locally';
+  }
 }
 
 function getLineupWeek(yr){
