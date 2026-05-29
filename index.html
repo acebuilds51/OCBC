@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.02</title>
+<title>OCBC Golf League v2.03</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.02</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.03</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.02</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.03</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -2070,8 +2070,22 @@ function renderLb(){
   else if(lbMode==='hot')sorted=[...played].filter(n=>stats[n].scores.length>=2).sort((a,b)=>parseFloat(rolling4(stats[a].scores)||99)-parseFloat(rolling4(stats[b].scores)||99));
   else sorted=[...played].sort((a,b)=>stats[b].wins-stats[a].wins);
 
+  // Build per-player round detail for expandable rows
+  const playerRounds={};
+  (yr.weeks||[]).forEach(wd=>{
+    (wd.players||[]).forEach((pl,pi)=>{
+      if(!pl||!pl.name)return;
+      const n=pl.name;
+      if(!playerRounds[n])playerRounds[n]=[];
+      const score=wd.scores?wd.scores.reduce((s,sc)=>s+(sc&&sc['p'+pi]&&sc['p'+pi]<99?sc['p'+pi]:0),0):0;
+      const par=wd.side==='front'?35:35;
+      playerRounds[n].push({week:wd.week,side:wd.side,score:score,par:par});
+    });
+  });
+
   const rows=sorted.map((n,i)=>{
     const s=stats[n];const r4=rolling4(s.scores);const sa=seasAvg(s.scores);const hot=isHot(s.scores);
+    const safeId=n.replace(/[^a-zA-Z0-9]/g,'_');
     let right='';
     if(lbMode==='avg'){
       right=`<div class="lb-stats">
@@ -2090,10 +2104,38 @@ function renderLb(){
         <div style="font-size:10px;color:var(--text2)">${s.pressWins} press win${s.pressWins!==1?'s':''}</div>
       </div>`;
     }
-    return`<div class="lb-row">
-      <div class="lb-rank${i<3?' top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
-      <div class="lb-name">${n}${s.isSub?'<span class="lb-sub">SUB</span>':''}${hot?' 🔥':''}</div>
-      ${right}
+    // Round history detail
+    const rounds=(playerRounds[n]||[]).sort((a,b)=>a.week-b.week);
+    const roundRows=rounds.map(r=>{
+      const diff=r.score-r.par;
+      const diffStr=diff===0?'E':diff>0?'+'+diff:''+diff;
+      const diffColor=diff<0?'var(--blue-d)':diff===0?'var(--text2)':'var(--red)';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Wk${r.week} · ${r.side==='front'?'Front 9':'Back 9'}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:700">${r.score}</span>
+          <span style="font-size:11px;color:${diffColor};min-width:28px;text-align:right">${diffStr}</span>
+        </div>
+      </div>`;
+    }).join('');
+    return`<div class="lb-row" style="flex-direction:column;align-items:stretch;cursor:pointer" onclick="toggleLbDetail('${safeId}')">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:4px">
+          <div class="lb-rank${i<3?' top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+          <div class="lb-name">${n}${s.isSub?'<span class="lb-sub">SUB</span>':''}${hot?' 🔥':''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          ${right}
+          <span id="lbc-${safeId}" style="font-size:10px;color:var(--text2);margin-left:4px">▼</span>
+        </div>
+      </div>
+      <div id="lbd-${safeId}" style="display:none;margin-top:6px;border-top:1px solid var(--border)">
+        ${roundRows||'<div style="padding:8px;font-size:12px;color:var(--text2)">No rounds yet</div>'}
+        <div style="padding:5px 10px;display:flex;justify-content:space-between;background:var(--navy-l)">
+          <span style="font-size:11px;color:var(--navy);font-weight:600">Season avg: ${sa}</span>
+          <span style="font-size:11px;color:var(--navy);font-weight:600">Last 4: ${r4||'—'}</span>
+        </div>
+      </div>
     </div>`;
   }).join('');
   document.getElementById('lb-list').innerHTML=`<div style="font-size:11px;color:var(--text2);margin-bottom:7px">R4 = last 4 weeks · Avg = season · 🔥 = hot streak (R4 lower than avg)</div><div class="card">${rows||'<div style="color:var(--text2);padding:10px">Not enough data yet</div>'}</div>`;
