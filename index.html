@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.00</title>
+<title>OCBC Golf League v2.02</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.00</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.02</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.00</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.02</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -804,6 +804,7 @@ label:first-child{margin-top:0}
       <div class="card">
         <div class="card-title">🔀 Merge Duplicate Names in Sheet</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Fix historical records where a name was spelled differently. Enter the OLD spelling and the CORRECT spelling.</p>
+        <button class="btn btn-secondary" style="width:100%;margin-bottom:8px;font-size:12px" onclick="prefillMerges()">🔍 Auto-detect corrections needed</button>
         <div id="merge-rows">
           <div class="merge-row" style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
             <input type="text" placeholder="Old spelling" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px" class="merge-old">
@@ -987,7 +988,7 @@ function isRainoutWeek(yr){
 
 // ── STATE ────────────────────────────────────────────────────
 // ── HARDCODED SHEET URL — update this when Apps Script is redeployed ──
-const SHEET_URL='https://script.google.com/macros/s/AKfycbx1HicAloPFyrS3W7UbVezyh0pfmiIyS-NTSXNt20GBaDMOhEQjLny1m5oEVyuKBBgm/exec';
+const SHEET_URL='https://script.google.com/macros/s/AKfycbxXXqywPbtt3mASwkioSLlLeTeRbTy83nMYKt3ZWhzyI6lVjubWy76LPxaNwgLIB1QAjA/exec';
 
 let ST={players:[],p5:null,holeIdx:0,scores:[],ctpWinners:{},p5scores:[],presses:[],awins:0,bwins:0};
 
@@ -3412,6 +3413,49 @@ async function adminSetVacated(){
   showToast('Vacated info saved ✓');
 }
 
+function prefillMerges(){
+  // Compare current db.players against the correct roster
+  // Find any that look like duplicates (same name different spelling)
+  const db=getDB();
+  const players=db.players||[];
+  const container=document.getElementById('merge-rows');
+  if(!container)return;
+  // Clear existing rows
+  container.innerHTML='<div class="merge-row" style="display:flex;gap:6px;margin-bottom:8px;align-items:center">'+
+    '<input type="text" placeholder="Old spelling" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px" class="merge-old">'+
+    '<span style="font-size:12px;color:var(--text2)">→</span>'+
+    '<input type="text" placeholder="Correct spelling" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px" class="merge-new"></div>';
+  // Known corrections based on current roster
+  const correctRoster=players; // current roster IS the correct list
+  // Find names in rounds that don't match roster
+  const yr=getYear(db);
+  const foundOld={};
+  (yr.weeks||[]).forEach(function(wd){
+    (wd.players||[]).forEach(function(pl){
+      if(pl&&pl.name&&!correctRoster.includes(pl.name)){
+        // Find closest match in roster
+        const lower=pl.name.toLowerCase();
+        const match=correctRoster.find(function(p){return p.toLowerCase()===lower;});
+        if(match&&!foundOld[pl.name]) foundOld[pl.name]=match;
+      }
+    });
+  });
+  const pairs=Object.entries(foundOld);
+  if(!pairs.length){showToast('No corrections needed — all names match roster ✓');return;}
+  container.innerHTML='';
+  pairs.forEach(function(pair){
+    var row=document.createElement('div');
+    row.className='merge-row';
+    row.style.cssText='display:flex;gap:6px;margin-bottom:8px;align-items:center';
+    row.innerHTML='<input type="text" value="'+pair[0]+'" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px" class="merge-old">'+
+      '<span style="font-size:12px;color:var(--text2)">→</span>'+
+      '<input type="text" value="'+pair[1]+'" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px" class="merge-new">'+
+      '<button onclick="this.parentElement.remove()" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer;font-size:11px;color:var(--red)">✕</button>';
+    container.appendChild(row);
+  });
+  showToast(pairs.length+' correction(s) found');
+}
+
 function addMergeRow(){
   var container=document.getElementById('merge-rows');
   if(!container)return;
@@ -3470,8 +3514,12 @@ async function runMerges(){
   if(errors.length){
     if(statusEl)statusEl.textContent='⚠️ Some errors: '+errors.join(', ');
   } else {
-    if(statusEl)statusEl.textContent='✓ All merges complete — '+totalUpdated+' total records updated';
-    showToast('Merges complete ✓');
+    if(statusEl)statusEl.textContent='✓ All merges complete — '+totalUpdated+' total records updated. Refreshing...';
+    showToast('Merges complete — refreshing data ✓');
+    // Reload from Sheet to get corrected names everywhere
+    setTimeout(function(){
+      if(db.sheetUrl) loadFromSheet(db.sheetUrl, db.activeYear);
+    }, 1000);
   }
 }
 
