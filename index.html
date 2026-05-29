@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.92</title>
+<title>OCBC Golf League v1.94</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.92</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.94</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.92</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.94</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -799,6 +799,21 @@ label:first-child{margin-top:0}
         <div id="roster-contact-rows"></div>
         <button class="btn btn-navy" style="width:100%;margin-top:10px" onclick="saveRosterContacts()">💾 Save & Publish Contacts</button>
         <div id="roster-contact-status" style="font-size:12px;color:var(--green-d);margin-top:6px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🔀 Merge Duplicate Names in Sheet</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Fix historical records where a name was spelled differently. Enter the OLD spelling and the CORRECT spelling.</p>
+        <div id="merge-rows">
+          <div class="merge-row" style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+            <input type="text" placeholder="Old spelling" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px" class="merge-old">
+            <span style="font-size:12px;color:var(--text2)">→</span>
+            <input type="text" placeholder="Correct spelling" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px" class="merge-new">
+          </div>
+        </div>
+        <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="addMergeRow()">+ Add Another</button>
+        <button class="btn btn-navy" style="width:100%" onclick="runMerges()">🔀 Run Merges in Sheet</button>
+        <div id="merge-status" style="font-size:12px;color:var(--green-d);margin-top:6px"></div>
       </div>
 
       <div class="card">
@@ -3377,6 +3392,69 @@ async function adminSetVacated(){
   showToast('Vacated info saved ✓');
 }
 
+function addMergeRow(){
+  var container=document.getElementById('merge-rows');
+  if(!container)return;
+  var row=document.createElement('div');
+  row.className='merge-row';
+  row.style.cssText='display:flex;gap:6px;margin-bottom:8px;align-items:center';
+  row.innerHTML='<input type="text" placeholder="Old spelling" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px" class="merge-old">'+
+    '<span style="font-size:12px;color:var(--text2)">→</span>'+
+    '<input type="text" placeholder="Correct spelling" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:12px" class="merge-new">'+
+    '<button onclick="this.parentElement.remove()" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer;font-size:11px;color:var(--red)">✕</button>';
+  container.appendChild(row);
+}
+
+async function runMerges(){
+  const db=getDB();
+  const statusEl=document.getElementById('merge-status');
+  const rows=document.querySelectorAll('.merge-row');
+  const pairs=[];
+  rows.forEach(function(row){
+    const oldEl=row.querySelector('.merge-old');
+    const newEl=row.querySelector('.merge-new');
+    const oldName=oldEl?oldEl.value.trim():'';
+    const newName=newEl?newEl.value.trim():'';
+    if(oldName&&newName&&oldName!==newName) pairs.push({oldName,newName});
+  });
+  if(!pairs.length){showToast('Enter at least one name pair');return;}
+  if(!db.sheetUrl){showToast('No sheet connected');return;}
+  if(statusEl)statusEl.textContent='Running '+pairs.length+' merge(s)...';
+  var totalUpdated=0;
+  var errors=[];
+  for(var pi=0;pi<pairs.length;pi++){
+    const pair=pairs[pi];
+    // Also update local data
+    const yr=getYear(db);
+    const idx=(db.players||[]).indexOf(pair.oldName);
+    if(idx>=0) db.players[idx]=pair.newName;
+    try{
+      const r=await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
+        action:'renamePlayer',
+        oldName:pair.oldName,
+        newName:pair.newName,
+        year:db.activeYear
+      })});
+      const d=await r.json();
+      if(d.ok){
+        totalUpdated+=d.updated||0;
+        if(statusEl)statusEl.textContent='✓ '+pair.oldName+' → '+pair.newName+' ('+d.updated+' records)';
+      } else {
+        errors.push(pair.oldName+': '+(d.error||'unknown error'));
+      }
+    }catch(e){
+      errors.push(pair.oldName+': sheet unreachable');
+    }
+  }
+  saveDB(db);
+  if(errors.length){
+    if(statusEl)statusEl.textContent='⚠️ Some errors: '+errors.join(', ');
+  } else {
+    if(statusEl)statusEl.textContent='✓ All merges complete — '+totalUpdated+' total records updated';
+    showToast('Merges complete ✓');
+  }
+}
+
 function initRosterContacts(){
   const db=getDB();
   const el=document.getElementById('roster-contact-rows');
@@ -4234,5 +4312,18 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
 
 
 </script>
+  <!-- LIVE PEEK OVERLAY -->
+  <div id="live-peek-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;overflow-y:auto" onclick="if(event.target===this)closeLivePeek()">
+    <div style="background:var(--white);margin:60px 12px 20px;border-radius:12px;padding:16px;max-width:500px;margin-left:auto;margin-right:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-weight:700;font-size:15px">📊 Live Scores</div>
+        <button onclick="closeLivePeek()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2)">✕</button>
+      </div>
+      <div id="live-peek-content">
+        <div style="text-align:center;padding:20px;color:var(--text2)">Loading...</div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
