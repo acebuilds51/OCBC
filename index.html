@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.97</title>
+<title>OCBC Golf League v1.99</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.97</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.99</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.97</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.99</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -3619,7 +3619,7 @@ function showJoinPicker(slot){
   var lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
   var taken={};
   var captains={};
-  for(var s=1;s<=10;s++){
+  for(var s=1;s<=20;s++){
     var grp=lineup[s]||{};
     var mbs=grp.members||[];
     for(var mi=0;mi<mbs.length;mi++) taken[mbs[mi]]=s;
@@ -3914,13 +3914,14 @@ async function confirmRestoreCaptain(){
 }
 
 function autoCompress(){
-  // Compresses filled slots up, tracks vacated captains, slot 10 always stays open
+  // Compress captained groups to top of slots 1-9
+  // Open Groups (slot 10+) always fill the remainder up to 10 total
   const db=getDB();const yr=getYear(db);
   if(!yr.weekLineup||!yr.weekLineup['upcoming'])return;
   var lineup=yr.weekLineup['upcoming'];
   if(!lineup.vacatedCaptains) lineup.vacatedCaptains=[];
   var filled=[];
-  // Slots 1-9: compress captained groups, track vacated captains
+  // Collect all valid captained groups from slots 1-9
   for(var s=1;s<=9;s++){
     var grp=lineup[s]||{};
     var hasContent=(grp.members&&grp.members.length>0&&grp.captain&&!grp.captainVacated);
@@ -3931,17 +3932,12 @@ function autoCompress(){
       if(!alreadyListed) lineup.vacatedCaptains.push({name:grp.prevCaptain,originalSlot:s});
     }
   }
-  // Slot 10: preserve as overflow
-  var slot10=lineup[10]?JSON.parse(JSON.stringify(lineup[10])):{members:[],captain:'',captainVacated:false};
-  // Rebuild slots 1-9: filled first, then empty
+  // Rebuild slots 1-9: captained groups first, then clear
   for(var fi=0;fi<9;fi++){
-    if(fi<filled.length){
-      lineup[fi+1]=filled[fi];
-    } else {
-      lineup[fi+1]={members:[],captain:'',captainVacated:false,prevCaptain:''};
-    }
+    lineup[fi+1]=fi<filled.length?filled[fi]:{members:[],captain:'',captainVacated:false,prevCaptain:''};
   }
-  lineup[10]=slot10;
+  // Preserve all open group slots (10+)
+  // They don't move — they stay as overflow at the end
 }
 
 function reorderLineup(){
@@ -4197,69 +4193,43 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     html += '</div>';
   }
 
-  // Fill empty slots to always show 9 real groups — with join buttons
-  var extraSlot=9; // use slot 9+ data for extra empty slots
-  while(displayCounter<9){
+  // After captained groups, fill remainder up to 10 with Open Groups
+  // Each open group slot: lineup[10], lineup[11], etc.
+  var ogSlotNum=10;
+  while(displayCounter<10){
     displayCounter++;
-    var fSlot=9-(9-displayCounter); // map to actual data slot
-    var fMins=(displayCounter-1)*7;
-    var fTotal=17*60+10+fMins;
-    var fH=Math.floor(fTotal/60);var fM=fTotal%60;
-    var fTeeStr=(fH>12?fH-12:fH)+':'+(fM<10?'0':'')+fM+'pm';
-    // Use a unique slot index for these overflow groups (slot 90+displayCounter to avoid conflicts)
-    var overflowSlot=90+displayCounter;
-    var overflowGrp=(lineup&&lineup[overflowSlot])?lineup[overflowSlot]:{members:[],captain:''};
-    var overflowMembers=overflowGrp.members||[];
-    var overflowOpen=4-overflowMembers.length;
-    html += '<div class="card" style="margin-bottom:8px">';
+    var fMins2=(displayCounter-1)*7;
+    var fTotal2=17*60+10+fMins2;
+    var fH2=Math.floor(fTotal2/60);var fM2=fTotal2%60;
+    var fTeeStr2=(fH2>12?fH2-12:fH2)+':'+(fM2<10?'0':'')+fM2+'pm';
+    var ogGrp2=lineup&&lineup[ogSlotNum]?lineup[ogSlotNum]:{members:[],captain:''};
+    var ogMems2=ogGrp2.members||[];
+    var ogOpen2=4-ogMems2.length;
+    html += '<div class="card" style="margin-bottom:8px;border:2px dashed var(--border)">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center">';
     html += '<div style="display:flex;align-items:center;gap:8px">';
-    html += '<span class="tee-badge">'+displayCounter+'</span>';
-    html += '<div><div style="font-weight:700;font-size:13px">'+fTeeStr+'</div>';
-    html += '<div style="font-size:11px;color:var(--text2)">No captain assigned</div></div></div>';
-    if(overflowOpen>0) html += '<span style="font-size:11px;color:var(--text2)">'+overflowOpen+' spot'+(overflowOpen!==1?'s':'')+' open</span>';
+    html += '<span class="tee-badge" style="background:var(--text2)">'+displayCounter+'</span>';
+    html += '<div><div style="font-weight:700;font-size:13px">'+fTeeStr2+'</div>';
+    html += '<div style="font-size:11px;color:var(--text2)">Open Group — any 4 players</div></div></div>';
+    if(ogOpen2>0) html += '<span style="font-size:11px;color:var(--text2)">'+ogOpen2+' spot'+(ogOpen2!==1?'s':'')+' open</span>';
     else html += '<span style="font-size:11px;color:var(--green-d)">Full</span>';
     html += '</div>';
-    if(overflowMembers.length>0){
+    if(ogMems2.length>0){
       html += '<div style="margin-top:8px">';
-      for(var fmi=0;fmi<overflowMembers.length;fmi++){
+      var isAdm3=localStorage.getItem('adminUnlocked')==='true';
+      for(var ogi3=0;ogi3<ogMems2.length;ogi3++){
         html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">';
-        html += '<span style="font-size:13px">'+overflowMembers[fmi]+'</span>';
-        html += '<button onclick="removeMemberFromSlot('+overflowSlot+','+fmi+')" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px 6px">✕ Remove</button>';
+        html += '<span style="font-size:13px">'+ogMems2[ogi3]+'</span>';
+        html += '<button onclick="removeMemberFromSlot('+ogSlotNum+','+ogi3+')" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px 6px">✕ Remove</button>';
         html += '</div>';
       }
       html += '</div>';
     }
-    if(overflowOpen>0) html += '<button onclick="showJoinPicker('+overflowSlot+')" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join This Group</button>';
+    if(ogOpen2>0) html += '<button onclick="showJoinPicker('+ogSlotNum+')" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join Open Group</button>';
     html += '</div>';
+    ogSlotNum++;
   }
 
-  // Always show an Open Group card at the end for non-captain groups
-  var lastDisplayNum=10-vacatedBefore+1;
-  var openGroup=lineup&&lineup[10]?lineup[10]:{members:[],captain:''};
-  var ogMembers=openGroup.members||[];
-  var ogOpen=4-ogMembers.length;
-  html += '<div class="card" style="margin-bottom:8px;border:2px dashed var(--border)">';
-  html += '<div style="display:flex;justify-content:space-between;align-items:center">';
-  html += '<div style="display:flex;align-items:center;gap:8px">';
-  html += '<span class="tee-badge" style="background:var(--text2)">OG</span>';
-  html += '<div><div style="font-weight:700;font-size:13px">Open Group</div>';
-  html += '<div style="font-size:11px;color:var(--text2)">Any 4 players — no captain required</div></div></div>';
-  if(ogOpen>0) html += '<span style="font-size:11px;color:var(--text2)">'+ogOpen+' spot'+(ogOpen!==1?'s':'')+' open</span>';
-  else html += '<span style="font-size:11px;color:var(--green-d)">Full</span>';
-  html += '</div>';
-  if(ogMembers.length>0){
-    html += '<div style="margin-top:8px">';
-    for(var ogi=0;ogi<ogMembers.length;ogi++){
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">';
-      html += '<span style="font-size:13px">'+ogMembers[ogi]+'</span>';
-      html += '<button onclick="removeMemberFromSlot(10,'+ogi+')" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px 6px">✕ Remove</button>';
-      html += '</div>';
-    }
-    html += '</div>';
-  }
-  if(ogOpen>0) html += '<button onclick="showJoinPicker(10)" style="width:100%;margin-top:8px;padding:8px;background:var(--navy-l);border:1px solid var(--border);border-radius:var(--rsm);font-size:13px;cursor:pointer;color:var(--navy);font-weight:600">+ Join Open Group</button>';
-  html += '</div>';
 
   // Teams looking
   var teams = (lineup && lineup.teamsLooking) ? lineup.teamsLooking : [];
@@ -4297,7 +4267,8 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
   // No response
   var accounted = {};
   // Check all possible slot keys including overflow slots (90+n)
-  var allKeys=[1,2,3,4,5,6,7,8,9,10,91,92,93,94,95,96,97,98,99];
+  // Check slots 1-20 to cover all possible open groups
+  var allKeys=[];for(var ak=1;ak<=20;ak++)allKeys.push(ak);
   for(var aki=0;aki<allKeys.length;aki++){
     var grp = (lineup && lineup[allKeys[aki]]) ? lineup[allKeys[aki]] : {};
     var mbs = grp.members || [];
