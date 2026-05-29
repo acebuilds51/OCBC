@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v1.99</title>
+<title>OCBC Golf League v2.00</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v1.99</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.00</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v1.99</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.00</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -2660,14 +2660,24 @@ function resetCurrentYear(){
     saveDB(db);location.reload();
   });
 }
-function addPlayer(){
-  const inp=document.getElementById('new-player-name');
-  if(!inp||!inp.value.trim())return;
+async function addPlayer(){
+  const inp=document.getElementById('new-player');
+  if(!inp||!inp.value.trim()){showToast('Enter a player name');return;}
   const name=inp.value.trim();
   const db=getDB();
-  if(db.players.includes(name)){showToast('Player already exists');return;}
+  if(db.players.includes(name)){showToast(name+' already exists');return;}
   db.players.push(name);db.players.sort();saveDB(db);inp.value='';
   renderPlayers();showToast(name+' added ✓');
+  // Push updated player list to Sheet
+  if(db.sheetUrl){
+    try{
+      await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
+        action:'saveConfig',
+        data:{players:JSON.stringify(db.players)}
+      })});
+      showToast(name+' saved to roster ✓');
+    }catch(e){}
+  }
 }
 
 function addNewYear(){
@@ -4108,7 +4118,34 @@ function renderThisWeek(){
   _renderThisWeekInner(db,yr,wk,lineup,el);
 }
 
+function normalizeLineupNames(lineup, players){
+  // Fix any name in lineup that doesn't match current roster
+  // Build a case-insensitive lookup for corrections
+  if(!lineup||!players||!players.length) return lineup;
+  var playerMap={};
+  players.forEach(function(p){ playerMap[p.toLowerCase().trim()]=p; });
+  function fixName(n){
+    if(!n) return n;
+    return playerMap[n.toLowerCase().trim()]||n;
+  }
+  for(var s=1;s<=20;s++){
+    if(lineup[s]){
+      if(lineup[s].captain) lineup[s].captain=fixName(lineup[s].captain);
+      if(lineup[s].prevCaptain) lineup[s].prevCaptain=fixName(lineup[s].prevCaptain);
+      if(lineup[s].members) lineup[s].members=lineup[s].members.map(fixName);
+    }
+  }
+  if(lineup.notPlaying) lineup.notPlaying=lineup.notPlaying.map(fixName);
+  if(lineup.playersLooking) lineup.playersLooking=lineup.playersLooking.map(fixName);
+  if(lineup.teamsLooking) lineup.teamsLooking=lineup.teamsLooking.map(function(t){
+    return {p1:fixName(t.p1),p2:fixName(t.p2)};
+  });
+  return lineup;
+}
+
 function _renderThisWeekInner(db,yr,wk,lineup,el){
+  // Normalize names against current roster before rendering
+  lineup = normalizeLineupNames(lineup, db&&db.players?db.players:[]);
   var html = '';
   var players = (db && db.players) ? db.players : [];
 
