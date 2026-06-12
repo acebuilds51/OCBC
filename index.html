@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.06</title>
+<title>OCBC Golf League v2.08</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -230,7 +230,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.06</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.08</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +242,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.06</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.08</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -930,11 +930,11 @@ function saveDB(db){localStorage.setItem('ocbcgl4',JSON.stringify(db));}
 function mkDB(){
   const yr=new Date().getFullYear().toString();
   return{
-    players:["Bob Pfiefer", "Bob Sanders", "Brian Sanders", "Chris Brady", "Chuck Geis", "Chuck Steinmetz", "Curtis Uren", "Dan Sulisz", "Doug Currie", "Doug Young", "Eric Smith", "Gregg Keller", "Herb Freibe", "Jeff Jarvis", "Jeff Landry", "Jim Fields", "Joe Boyle", "Joe Leininger", "Joe Szydlowski", "John Arthurs", "John Dent", "John Mariani", "John Powers", "Kris Mclogan", "Mike Dentamaro", "Nate Edmonds", "Nemo Yaldo", "Pete Harrop", "Rick Kincaid", "Sam Shanbom", "Steve Shepard", "Steve Tomba", "Todd Mack", "Tom Fields", "Tony Edmonds", "Vince Santavicca"],
+    players:["Bob Pfiefer", "Bob Sanders", "Brendan Molloy", "Brian Sanders", "Chris Brady", "Chuck Geis", "Chuck Steinmetz", "Curtis Uren", "Dan Sulisz", "Doug Currie", "Doug Young", "Eric Smith", "Gregg Keller", "Herb Freibe", "Jeff Jarvis", "Jeff Landry", "Jim Fields", "Joe Boyle", "Joe Leininger", "Joe Szydlowski", "John Arthurs", "John Dent", "John Mariani", "John Powers", "Kris Mclogan", "Mike Dentamaro", "Nate Edmonds", "Nemo Yaldo", "Paul Rolind", "Pete Harrop", "Rick Kincaid", "Sam Shanbom", "Steve Shepard", "Steve Tomba", "Tod Mack", "Tom Fields", "Tony Edmonds", "Vince Santavicca"],
     subs:[],
     years:{[yr]:{weeks:[],currentWeek:1,currentSide:'front',seasonStartDate:'',leagueDay:4,scrambleWeek:14,scramblePot:0,sideOverride:null,rainouts:[]}},
     activeYear:yr,
-    sheetUrl:'https://script.google.com/macros/s/AKfycbwfWvqlUL60YasjRFJY56oz3KMgWYvIWTVD3E4m1wD8H2R9CFsQK9tjeklgCIatpb2OuA/exec',
+    sheetUrl:'',
     adminPw: DEFAULT_PW,
     adminUnlocked: false
   };
@@ -1093,7 +1093,31 @@ async function loadFromSheet(url, year){
     if(d.config) applyConfig(db, yr, d.config);
     // NOW merge rounds — seasonStartDate is already set so week calc works correctly
     if(d.rounds && d.rounds.length>0){
+      // Preserve local settlement data (skinsMoney/ctpMoney/skinsSettled)
+      // that may not be in Sheet yet if push failed
+      const localSettlement={};
+      (yr.weeks||[]).forEach(wd=>{
+        if(wd.skinsSettled){
+          const key=wd.week+'_'+wd.teeTime;
+          localSettlement[key]={
+            skinsMoney:wd.skinsMoney,
+            ctpMoney:wd.ctpMoney,
+            skinsSettled:wd.skinsSettled,
+            skins:wd.skins,
+            leagueCTP:wd.leagueCTP,
+            skinPay:wd.skinPay,
+            ctpPay:wd.ctpPay
+          };
+        }
+      });
       yr.weeks=d.rounds;
+      // Restore settlement data onto newly loaded rounds
+      yr.weeks.forEach(wd=>{
+        const key=wd.week+'_'+wd.teeTime;
+        if(localSettlement[key]){
+          Object.assign(wd,localSettlement[key]);
+        }
+      });
       // Only auto-advance if NO season start date is configured
       if(!yr.seasonStartDate){
         const lastWeek=Math.max(...d.rounds.map(w=>w.week||0));
@@ -1934,7 +1958,24 @@ function calcLeagueWideSkinsCTP(db,yr,wk,side){
   });
 
   saveDB(db);
-  showToast('All 9 groups in! Skins & CTP settled 🏆');
+  showToast('Skins & CTP settled 🏆');
+  // Push settled results back to Sheet so they survive reload
+  pushSettlementToSheet(db, yr, wk);
+}
+
+async function pushSettlementToSheet(db, yr, wk){
+  if(!db.sheetUrl)return;
+  const weekRounds=yr.weeks.filter(w=>w.week===wk);
+  if(!weekRounds.length)return;
+  try{
+    // Save each settled round back to Sheet with skinsMoney/ctpMoney/skinsSettled
+    for(const wd of weekRounds){
+      await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
+        action:'saveRound',
+        data:wd
+      })});
+    }
+  }catch(e){console.log('Settlement sync error:',e);}
 }
 
 // ── RESULTS ──────────────────────────────────────────────────
@@ -2030,11 +2071,26 @@ function buildStats(yr_data){
   const subsOnly=(db.subs||[]).filter(n=>!regularSet.has(n));
   const allPlayersDeduped=[...(db.players||[]),...subsOnly];
   allPlayersDeduped.forEach(n=>{stats[n]={money:0,scores:[],wins:0,skins:0,ctps:0,pressWins:0,isSub:!regularSet.has(n)};});
+  // Build name correction map from regularSet (handles spelling fixes)
+  // Case-insensitive lookup so "Paul Rogind" matches if roster has "Paul Rolind" — no, different name
+  // Instead use a direct sub-to-regular promotion map
+  const nameMap={};
+  // Any name in subs that closely matches a regular gets mapped
+  (db.subs||[]).forEach(subName=>{
+    const lc=subName.toLowerCase().replace(/\s+/g,' ').trim();
+    for(const reg of regularSet){
+      if(reg.toLowerCase().replace(/\s+/g,' ').trim()===lc){
+        nameMap[subName]=reg; // exact match different case
+        break;
+      }
+    }
+  });
+
   yr_data.weeks.forEach(wd=>{
     if(!wd.players||!wd.scores)return;
     wd.players.forEach((pl,i)=>{
       if(!pl||!pl.name)return; // skip undefined/null players
-      const n=pl.name;
+      const n=nameMap[pl.name]||pl.name; // apply promotion map
       // If player is now a regular, treat all their rounds (incl sub rounds) as regular
       if(!stats[n])stats[n]={money:0,scores:[],wins:0,skins:0,ctps:0,pressWins:0,isSub:!regularSet.has(n)};
       stats[n].scores.push({week:wd.week,score:wd.scores.reduce((s,sc)=>s+(sc&&sc['p'+i]<99?sc['p'+i]:0),0)});
@@ -2804,6 +2860,7 @@ function settleSkinsManual(){
   renderAdminCtpLb();
   renderAdminMoneyLb();
   showToast('Week '+wk+' skins & CTP settled ✓ ('+thisWkRounds.length+' groups)');
+  pushSettlementToSheet(db,yr,wk);
 }
 
 // ── PAST WEEK SCORE ENTRY ─────────────────────────────────────
