@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.09</title>
+<title>OCBC Golf League v2.10</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -11,6 +11,22 @@
 <meta name="theme-color" content="#1a2a4a">
 <link rel="manifest" href="manifest.json">
 <script>
+// Global error handler — catches silent crashes
+window.onerror = function(msg, src, line, col, err){
+  console.error('OCBC Error:', msg, 'at', src, line+':'+col, err);
+  // Show non-intrusive toast for users
+  if(typeof showToast === 'function'){
+    showToast('⚠️ App error — please refresh if something looks wrong');
+  }
+  return false;
+};
+window.addEventListener('unhandledrejection', function(e){
+  console.error('OCBC Unhandled Promise:', e.reason);
+  if(typeof showToast === 'function' && e.reason && e.reason.message){
+    showToast('⚠️ '+e.reason.message);
+  }
+});
+
 // Register service worker only on GitHub Pages, not in preview/dev environments
 if('serviceWorker' in navigator && location.hostname.includes('github.io')){
   navigator.serviceWorker.register('/OCBC/sw.js').then(reg=>{
@@ -230,7 +246,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.09</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.10</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -242,7 +258,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.09</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.10</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -527,6 +543,24 @@ label:first-child{margin-top:0}
         <div id="join-picker-error" style="color:var(--red);font-size:12px;margin-top:8px"></div>
       </div>
     </div>
+  </div>
+
+  <!-- HANDICAP TAB -->
+  <div id="tab-handicap" class="tab-content">
+    <div style="padding:9px 15px 0;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <span style="font-size:13px;font-weight:600">USGA Handicap Index</span>
+        <div style="font-size:11px;color:var(--text2)">Informational only · Based on rounds at Crystal Lake</div>
+      </div>
+      <span id="handicap-year-pill" class="year-pill"></span>
+    </div>
+    <div style="padding:6px 15px 0">
+      <div style="font-size:11px;color:var(--text2);background:var(--navy-l);padding:8px 10px;border-radius:var(--rsm);line-height:1.5">
+        📋 <strong>How to use:</strong> Your Handicap Index can be used at any USGA-rated course. Ask the pro shop for the Course Handicap chart, or calculate: <em>Handicap Index × Slope ÷ 113</em>
+      </div>
+    </div>
+    <div style="padding:6px 15px 0" id="hcp-course-info"></div>
+    <div class="section" id="handicap-list"></div>
   </div>
 
   <!-- SKINS TAB — current week only, public -->
@@ -818,6 +852,32 @@ label:first-child{margin-top:0}
       </div>
 
       <div class="card">
+        <div class="card-title">⛳ Course Rating & Slope Settings</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Used to calculate USGA Handicap Index for each player. Ask your local golf association or check the course scorecard.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <label style="font-size:11px;color:var(--text2)">Front 9 Rating</label>
+            <input type="number" id="course-rating-front" step="0.1" placeholder="e.g. 34.5" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text2)">Front 9 Slope</label>
+            <input type="number" id="course-slope-front" placeholder="e.g. 118" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text2)">Back 9 Rating</label>
+            <input type="number" id="course-rating-back" step="0.1" placeholder="e.g. 34.8" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text2)">Back 9 Slope</label>
+            <input type="number" id="course-slope-back" placeholder="e.g. 120" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Par: Front 9 = 35 · Back 9 = 35 · Total = 70</div>
+        <button class="btn btn-navy" style="width:100%" onclick="saveCourseSettings()">💾 Save Course Settings</button>
+        <div id="course-settings-status" style="font-size:12px;color:var(--green-d);margin-top:6px"></div>
+      </div>
+
+      <div class="card">
         <div class="card-title">💰 Season Money Leaderboard</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Visible to commissioner only.</p>
         <div id="admin-money-lb"></div>
@@ -856,6 +916,10 @@ label:first-child{margin-top:0}
   <button class="bnav-btn" id="nb-thisweek" onclick="showTab('thisweek')">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     <span>This Week</span>
+  </button>
+  <button class="bnav-btn" id="nb-handicap" onclick="showTab('handicap')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><text x="12" y="16" text-anchor="middle" font-size="10" fill="currentColor" stroke="none">HCP</text></svg>
+    <span>Handicap</span>
   </button>
   <button class="bnav-btn" id="nb-history" onclick="showTab('history')">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -1194,6 +1258,13 @@ function applyConfig(db, yr, cfg){
     try{
       const rc=typeof cfg[rosterKey]==='string'?JSON.parse(cfg[rosterKey]):cfg[rosterKey];
       db.rosterContacts=rc;
+    }catch(e){}
+  }
+  // Course settings
+  if(cfg['courseSettings']){
+    try{
+      const cs=typeof cfg['courseSettings']==='string'?JSON.parse(cfg['courseSettings']):cfg['courseSettings'];
+      db.courseSettings=cs;
     }catch(e){}
   }
   // Auto-update sheet URL if commissioner has published a new one
@@ -2112,6 +2183,221 @@ function buildStats(yr_data){
   });
   return stats;
 }
+// ── COURSE SETTINGS ──────────────────────────────────────────
+async function saveCourseSettings(){
+  const db=getDB();
+  const rf=parseFloat(document.getElementById('course-rating-front')?.value)||34.5;
+  const sf=parseInt(document.getElementById('course-slope-front')?.value)||118;
+  const rb=parseFloat(document.getElementById('course-rating-back')?.value)||34.8;
+  const sb=parseInt(document.getElementById('course-slope-back')?.value)||120;
+  db.courseSettings={
+    front:{rating:rf,slope:sf,par:35},
+    back:{rating:rb,slope:sb,par:35}
+  };
+  saveDB(db);
+  const statusEl=document.getElementById('course-settings-status');
+  if(db.sheetUrl){
+    try{
+      await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
+        action:'saveConfig',
+        data:{courseSettings:JSON.stringify(db.courseSettings)}
+      })});
+      if(statusEl)statusEl.textContent='✓ Course settings saved & synced';
+      showToast('Course settings saved ✓');
+    }catch(e){
+      if(statusEl)statusEl.textContent='✓ Saved locally';
+    }
+  } else {
+    if(statusEl)statusEl.textContent='✓ Saved locally';
+  }
+}
+
+function initCourseSettings(){
+  const db=getDB();
+  const cs=db.courseSettings||{};
+  const front=cs.front||{};
+  const back=cs.back||{};
+  const rfEl=document.getElementById('course-rating-front');
+  const sfEl=document.getElementById('course-slope-front');
+  const rbEl=document.getElementById('course-rating-back');
+  const sbEl=document.getElementById('course-slope-back');
+  if(rfEl&&front.rating) rfEl.value=front.rating;
+  if(sfEl&&front.slope) sfEl.value=front.slope;
+  if(rbEl&&back.rating) rbEl.value=back.rating;
+  if(sbEl&&back.slope) sbEl.value=back.slope;
+}
+
+// ── USGA HANDICAP ENGINE ─────────────────────────────────────
+// USGA World Handicap System (WHS) 2020
+// 9-hole differentials are stored and two consecutive 9s can be combined
+// For standalone 9-hole rounds: differential = (score - courseRating) * 113/slope
+// Handicap Index = average of best 8 of last 20 differentials * 0.96
+// Course Handicap = HandicapIndex * Slope/113 + (CourseRating - Par)
+
+function calcDifferential(score, rating, slope){
+  // USGA differential formula
+  return parseFloat(((score - rating) * 113 / slope).toFixed(1));
+}
+
+function calcHandicapIndex(differentials){
+  if(!differentials||!differentials.length) return null;
+  // Use last 20 max
+  const last20=differentials.slice(-20);
+  const sorted=[...last20].sort((a,b)=>a-b);
+  // Number of differentials to use based on count
+  const countTable={
+    1:null, 2:null, 3:1, 4:1, 5:1, 6:2, 7:2, 8:2,
+    9:3, 10:3, 11:3, 12:4, 13:4, 14:4, 15:5,
+    16:6, 17:6, 18:7, 19:8, 20:8
+  };
+  const n=last20.length;
+  const useCount=countTable[n]||null;
+  if(!useCount) return null; // need at least 3 rounds
+  const best=sorted.slice(0,useCount);
+  const avg=best.reduce((s,d)=>s+d,0)/best.length;
+  return parseFloat((avg*0.96).toFixed(1));
+}
+
+function calcCourseHandicap(handicapIndex, slope, rating, par){
+  if(handicapIndex===null) return null;
+  return Math.round(handicapIndex * slope/113 + (rating - par));
+}
+
+function renderHandicap(){
+  const db=getDB();const yr=getYear(db);
+  const el=document.getElementById('handicap-list');
+  const infoEl=document.getElementById('hcp-course-info');
+  const yearPill=document.getElementById('handicap-year-pill');
+  if(yearPill) yearPill.textContent=db.activeYear;
+  if(!el)return;
+
+  const cs=db.courseSettings||{
+    front:{rating:34.5,slope:118,par:35},
+    back:{rating:34.8,slope:120,par:35}
+  };
+
+  // Show course info
+  if(infoEl){
+    infoEl.innerHTML=`<div style="font-size:11px;color:var(--text2);padding:4px 0">
+      The Links at Crystal Lake &nbsp;·&nbsp;
+      Front: ${cs.front.rating}/${cs.front.slope} &nbsp;·&nbsp;
+      Back: ${cs.back.rating}/${cs.back.slope}
+    </div>`;
+  }
+
+  // Build differentials per player
+  const playerDiffs={};
+  const playerRoundsHcp={};
+  (yr.weeks||[]).forEach(wd=>{
+    if(!wd.players||!wd.scores)return;
+    const side=wd.side||'back';
+    const courseData=cs[side]||cs.back;
+    wd.players.forEach((pl,i)=>{
+      if(!pl||!pl.name)return;
+      const n=pl.name;
+      const score=wd.scores.reduce((s,sc)=>s+(sc&&sc['p'+i]&&sc['p'+i]<99?sc['p'+i]:0),0);
+      if(score<25||score>70)return; // sanity check
+      if(!playerDiffs[n])playerDiffs[n]=[];
+      if(!playerRoundsHcp[n])playerRoundsHcp[n]=[];
+      const diff=calcDifferential(score,courseData.rating,courseData.slope);
+      playerDiffs[n].push(diff);
+      playerRoundsHcp[n].push({week:wd.week,side,score,diff,rating:courseData.rating,slope:courseData.slope});
+    });
+  });
+
+  // Calculate handicap indexes
+  const hcpData=[];
+  const regularSet=new Set(db.players||[]);
+  const allP=[...(db.players||[]),...(db.subs||[]).filter(n=>!regularSet.has(n))];
+
+  allP.forEach(n=>{
+    const diffs=playerDiffs[n]||[];
+    const rounds=playerRoundsHcp[n]||[];
+    if(!rounds.length)return;
+    const hcpIndex=calcHandicapIndex(diffs);
+    const frontHcp=hcpIndex!==null?calcCourseHandicap(hcpIndex,cs.front.slope,cs.front.rating,cs.front.par):null;
+    const backHcp=hcpIndex!==null?calcCourseHandicap(hcpIndex,cs.back.slope,cs.back.rating,cs.back.par):null;
+    hcpData.push({name:n,hcpIndex,frontHcp,backHcp,rounds,diffs});
+  });
+
+  // Sort by handicap index ascending (lower = better)
+  hcpData.sort((a,b)=>{
+    if(a.hcpIndex===null&&b.hcpIndex===null)return 0;
+    if(a.hcpIndex===null)return 1;
+    if(b.hcpIndex===null)return -1;
+    return a.hcpIndex-b.hcpIndex;
+  });
+
+  if(!hcpData.length){
+    el.innerHTML='<div class="empty-state"><div style="font-size:32px">⛳</div><p>No rounds yet.</p></div>';
+    return;
+  }
+
+  const needsSetup=!db.courseSettings;
+  let html='';
+  if(needsSetup){
+    html+='<div style="background:var(--gold-l);border:1px solid var(--gold);border-radius:var(--rsm);padding:10px 12px;margin-bottom:10px;font-size:12px">⚠️ Course rating & slope not set. Go to Admin → Course Rating & Slope Settings to enter the official values from the scorecard for accurate handicaps.</div>';
+  }
+
+  hcpData.forEach((p,i)=>{
+    const safeId=p.name.replace(/[^a-zA-Z0-9]/g,'_');
+    const hasHcp=p.hcpIndex!==null;
+    const hcpStr=hasHcp?p.hcpIndex.toFixed(1):'N/A*';
+    const needsMore=!hasHcp?`<div style="font-size:10px;color:var(--text2);margin-top:2px">${3-p.rounds.length} more round${3-p.rounds.length!==1?'s':''} needed</div>`:'';
+
+    // Round detail rows
+    const roundRows=p.rounds.map(r=>{
+      const diff=r.diff>=0?'+'+r.diff:r.diff;
+      const diffColor=r.diff<0?'var(--blue-d)':'var(--red)';
+      return`<div style="display:flex;justify-content:space-between;padding:4px 10px;border-bottom:1px solid var(--border);font-size:11px">
+        <span style="color:var(--text2)">Wk${r.week} · ${r.side==='front'?'Front':'Back'} 9</span>
+        <span>Score: <strong>${r.score}</strong></span>
+        <span style="color:${diffColor}">Diff: ${diff}</span>
+      </div>`;
+    }).join('');
+
+    // Course handicap breakdown
+    const courseHcpRows=hasHcp?`
+      <div style="padding:8px 10px;background:var(--navy-l);border-radius:0 0 var(--rsm) var(--rsm)">
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:4px">Course Handicaps at Crystal Lake:</div>
+        <div style="display:flex;gap:16px;font-size:12px">
+          <span>Front 9: <strong>${p.frontHcp>=0?'+'+p.frontHcp:p.frontHcp}</strong></span>
+          <span>Back 9: <strong>${p.backHcp>=0?'+'+p.backHcp:p.backHcp}</strong></span>
+        </div>
+        <div style="font-size:10px;color:var(--text2);margin-top:4px">
+          Formula: HI × Slope ÷ 113 + (Rating − Par) &nbsp;·&nbsp;
+          For other courses: ask pro shop for Course Handicap table
+        </div>
+      </div>`:'';
+
+    html+=`<div style="border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer" onclick="toggleLbDetail('hcp_${safeId}')">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:700;color:var(--text2);min-width:22px">${i+1}</span>
+          <div>
+            <div style="font-size:14px;font-weight:600">${p.name}</div>
+            ${needsMore}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="text-align:right">
+            <div style="font-size:18px;font-weight:700;color:${hasHcp?'var(--navy)':'var(--text2)'}">${hcpStr}</div>
+            <div style="font-size:10px;color:var(--text2)">HCP Index · ${p.rounds.length} round${p.rounds.length!==1?'s':''}</div>
+          </div>
+          <span id="lb-chevron-hcp_${safeId}" style="font-size:12px;color:var(--text2);transition:transform 0.2s">▼</span>
+        </div>
+      </div>
+      <div id="lbd-hcp_${safeId}" style="display:none">
+        ${roundRows}
+        ${courseHcpRows}
+      </div>
+    </div>`;
+  });
+
+  html+='<div style="font-size:10px;color:var(--text2);padding:10px 12px;text-align:center">* Minimum 3 rounds required for Handicap Index calculation<br>Based on USGA World Handicap System (WHS) 2020</div>';
+  el.innerHTML='<div class="card" style="padding:0;overflow:hidden">'+html+'</div>';
+}
+
 function toggleLbDetail(id){
   var d=document.getElementById('lbd-'+id);
   var c=document.getElementById('lbc-'+id);
@@ -2260,12 +2546,12 @@ function showTab(t){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('s-tabs').classList.add('active');
   document.getElementById('bnav').style.display='flex';
-  ['leaderboard','history','live','ctp','skins','thisweek','admin'].forEach(x=>{
+  ['leaderboard','history','live','ctp','skins','thisweek','handicap','admin'].forEach(x=>{
     document.getElementById('tab-'+x).classList.toggle('active',x===t);
     const nb=document.getElementById('nb-'+x);if(nb)nb.classList.toggle('active',x===t);
   });
-  const T={leaderboard:'Leaderboard',history:'Season History',live:'Live Scoring',ctp:'CTP Leaders',skins:'Skins Leaders',thisweek:'This Week',admin:'Admin Settings'};
-  const S={leaderboard:'Scores, averages & hot streaks',history:'All rounds played',live:'Live hole-by-hole · updates every 60s',ctp:'Closest to the pin leaders',skins:'Skin winners by week',thisweek:'Tee times & groups for this Thursday',admin:'Commissioner access'};
+  const T={leaderboard:'Leaderboard',history:'Season History',live:'Live Scoring',ctp:'CTP Leaders',skins:'Skins Leaders',thisweek:'This Week',handicap:'Handicap Index',admin:'Admin Settings'};
+  const S={leaderboard:'Scores, averages & hot streaks',history:'All rounds played',live:'Live hole-by-hole · updates every 60s',ctp:'Closest to the pin leaders',skins:'Skin winners by week',thisweek:'Tee times & groups for this Thursday',handicap:'USGA Handicap Index · informational',admin:'Commissioner access'};
   document.getElementById('tab-title').textContent=T[t];
   document.getElementById('tab-sub').textContent=S[t];
   if(t==='live'){startLiveAutoRefresh();}else{stopLiveAutoRefresh();}
@@ -2274,7 +2560,8 @@ function showTab(t){
   if(t==='ctp')renderCTP();
   if(t==='skins')renderSkins();
   if(t==='thisweek')renderThisWeek();
-  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();initSettleWeekSel();initClearLiveWeekSel();initCaptainEntry();initRosterContacts();}
+  if(t==='handicap')renderHandicap();
+  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();initSettleWeekSel();initClearLiveWeekSel();initCaptainEntry();initRosterContacts();initCourseSettings();}
   window.scrollTo(0,0);
 }
 function hideBnav(){document.getElementById('bnav').style.display='none';}
