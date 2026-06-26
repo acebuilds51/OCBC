@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.10</title>
+<title>OCBC Golf League v2.13</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -246,7 +246,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.10</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.13</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -258,7 +258,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.10</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.13</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -309,6 +309,7 @@ label:first-child{margin-top:0}
       <div class="card-title">Your Tee Time Position</div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:10px">Tap your tee time number — higher number = later tee time = CTP priority</p>
       <div id="tee-time-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px"></div>
+      <div id="tee-time-legend" style="font-size:10px;color:var(--text2);text-align:center;margin-bottom:8px"></div>
       <div id="tee-time-warning" style="display:none;background:var(--red-l);border:1px solid var(--red);border-radius:var(--rsm);padding:8px 10px;font-size:13px;color:var(--red);font-weight:600;text-align:center"></div>
       <input type="hidden" id="tee-time" value="">
     </div>
@@ -1052,7 +1053,7 @@ function isRainoutWeek(yr){
 
 // ── STATE ────────────────────────────────────────────────────
 // ── HARDCODED SHEET URL — update this when Apps Script is redeployed ──
-const SHEET_URL='https://script.google.com/macros/s/AKfycbxXXqywPbtt3mASwkioSLlLeTeRbTy83nMYKt3ZWhzyI6lVjubWy76LPxaNwgLIB1QAjA/exec';
+const SHEET_URL='https://script.google.com/macros/s/AKfycbyC3yv3fr4zzVbaAUuaBebWYRVxgwFExTcdfjDF76Mkx9E9qe5VgAoI5uFUHrPZJ2oiEg/exec';
 
 let ST={players:[],p5:null,holeIdx:0,scores:[],ctpWinners:{},p5scores:[],presses:[],awins:0,bwins:0};
 
@@ -1096,6 +1097,7 @@ function setLogos(){
 }
 
 async function initApp(){
+  retryPendingSubmissions();
   _skipLoad=false;
   // Hard fallback — always get to home screen within 4 seconds
   const hardFallback=setTimeout(()=>{ showHomeScreen(); },4000);
@@ -1389,7 +1391,31 @@ function chkSelects(){
 }
 
 // ── START SCORING ────────────────────────────────────────────
-function startScoring(){
+async function startScoring(){
+  // Re-check live/submitted data one more time right before starting,
+  // since the player may have picked their tee time a minute ago and
+  // someone else could have claimed it in the meantime.
+  const ttEl=document.getElementById('tee-time');
+  const chosenTee=ttEl?parseInt(ttEl.value):null;
+  if(chosenTee&&!ST._pastMode){
+    await refreshTeeTimeLiveData();
+    const usedMap=buildTeeTimeUsedMap();
+    const info=usedMap[chosenTee];
+    if(info){
+      const names=info.names.join(', ');
+      const statusWord=info.status==='in_progress'?'just started their round (in progress)':'just submitted scores';
+      doConfirm(
+        '⚠️ Tee Time '+chosenTee+' was just taken',
+        names+' '+statusWord+' for Tee Time '+chosenTee+' moments ago. Go back and double check before continuing — only proceed if you genuinely are also part of this tee time.',
+        ()=>{_startScoringConfirmed();}
+      );
+      return;
+    }
+  }
+  _startScoringConfirmed();
+}
+
+function _startScoringConfirmed(){
   const db=getDB();const yr=getYear(db);
   ST.teeTime=ST._pastMode?ST._pastTeeTime:parseInt(document.getElementById('tee-time').value);
   ST.players=[1,2,3,4].map(n=>{
@@ -1670,8 +1696,10 @@ function calcResults(){
   });
 
   // Skins + CTP are league-wide — pending until all 9 tee times submit
+  const roundId=wk+'_'+side+'_'+ST.teeTime+'_'+ST.players.map(p=>p.name).sort().join('|');
   const wd={
     week:wk,side:side,year:db.activeYear,
+    roundId:roundId,
     date:new Date().toLocaleDateString(),teeTime:ST.teeTime,
     players:ST.players.map(p=>({name:p.name,isSub:p.isSub})),
     scores:JSON.parse(JSON.stringify(ST.scores)),
@@ -1681,8 +1709,17 @@ function calcResults(){
     skinsSettled:false,skins:{},skinPay:0,ctpPay:0,leagueCTP:{}
   };
 
-  // Remove any existing entry for this week+teeTime (resubmit)
-  yr.weeks=yr.weeks.filter(w=>!(w.week===wk&&w.teeTime===ST.teeTime));
+  // Only remove an existing entry if it's the SAME group resubmitting
+  // (matched by week+teeTime+side+same player names). A different group
+  // claiming the same tee time creates a separate entry instead of overwriting.
+  const sameGroupExisting=yr.weeks.find(w=>w.week===wk&&w.side===side&&w.teeTime===ST.teeTime&&w.roundId===roundId);
+  const differentGroupAtSameTee=yr.weeks.filter(w=>w.week===wk&&w.side===side&&w.teeTime===ST.teeTime&&w.roundId!==roundId);
+  if(sameGroupExisting){
+    yr.weeks=yr.weeks.filter(w=>w.roundId!==roundId);
+  }
+  if(differentGroupAtSameTee.length){
+    showToast('⚠️ Another group already used Tee '+ST.teeTime+' — your scores were saved separately, please flag this to the commissioner');
+  }
   yr.weeks.push(wd);
   saveDB(db);
 
@@ -1691,7 +1728,7 @@ function calcResults(){
   const allIn=thisWeekRounds.length>=9;
   if(allIn) calcLeagueWideSkinsCTP(db,yr,wk,side);
 
-  const savedWd=yr.weeks.find(w=>w.week===wk&&w.teeTime===ST.teeTime)||wd;
+  const savedWd=yr.weeks.find(w=>w.roundId===roundId)||wd;
   syncToSheet(savedWd);
   renderResults(savedWd,hres,savedWd.skins||{},savedWd.skinPay||0,savedWd.ctpPay||0,allIn,savedWd.leagueCTP||{});
   renderHome();renderLb();renderHistory();renderCTP();
@@ -2788,50 +2825,175 @@ async function saveRound(wd){
   yr.weeks.push(wd);saveDB(db);
   ST._pastMode=false;ST._pastWeek=null;ST._pastSide=null;ST._pastTeeTime=null;
   clearSTProgress();
-  if(!db.sheetUrl){showToast('Saved locally (no sheet connected)');return;}
+
+  if(!db.sheetUrl){
+    showSubmitConfirmation(wd, false, 'No sheet connected — saved on this phone only');
+    return;
+  }
+
   setSyncing('Saving to sheet...');
-  try{
-    const r=await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveRound',year:db.activeYear,data:wd})});
-    const d=await r.json();
-    if(d.ok){
-      setSynced('Round saved ✓');
-      showToast('Scores submitted ✓');
-    }else{
-      setSyncErr('Sheet error: '+d.error);
-      showToast('⚠️ Sheet error — scores saved locally only');
+  const attemptSave=async function(attemptNum){
+    try{
+      const r=await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveRound',year:db.activeYear,data:wd})});
+      const d=await r.json();
+      if(d.ok) return {ok:true};
+      return {ok:false,error:d.error||'Sheet returned an error'};
+    }catch(e){
+      return {ok:false,error:'Connection failed'};
     }
-  }catch(e){
-    setSyncErr('Saved locally — sheet unreachable');
-    showToast('⚠️ No connection — scores saved locally only');
+  };
+
+  let result=await attemptSave(1);
+  if(!result.ok){
+    // Auto-retry once after a short delay
+    showToast('⏳ Retrying save...');
+    await new Promise(res=>setTimeout(res,2000));
+    result=await attemptSave(2);
+  }
+
+  if(result.ok){
+    // Verify the round actually landed on the Sheet
+    let verified=false;
+    try{
+      const vr=await fetch(db.sheetUrl+'?action=getAllRounds&year='+encodeURIComponent(db.activeYear));
+      const vd=await vr.json();
+      if(vd.ok&&vd.rounds){
+        verified=vd.rounds.some(r=>r.week===wd.week&&r.teeTime===wd.teeTime&&r.side===wd.side);
+      }
+    }catch(e){}
+    setSynced('Round saved ✓');
+    showSubmitConfirmation(wd, true, verified?'Confirmed on server ✓':'Saved — verification pending');
+  } else {
+    setSyncErr('Sheet error: '+result.error);
+    // Queue for retry on next app open
+    if(!db.pendingSubmissions)db.pendingSubmissions=[];
+    db.pendingSubmissions.push({wd:wd,year:db.activeYear,timestamp:Date.now()});
+    saveDB(db);
+    showSubmitConfirmation(wd, false, 'Could not reach the server — will auto-retry. DO NOT close the app yet.');
+  }
+}
+
+function showSubmitConfirmation(wd, success, message){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  const names=(wd.players||[]).filter(p=>p&&p.name).map(p=>p.name).join(' / ');
+  const icon=success?'✅':'⚠️';
+  const color=success?'var(--green-d)':'var(--red)';
+  const bg=success?'var(--green)':'var(--red)';
+  overlay.innerHTML='<div style="background:var(--white);border-radius:14px;padding:24px;max-width:340px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.3)">'+
+    '<div style="font-size:48px;margin-bottom:8px">'+icon+'</div>'+
+    '<div style="font-size:18px;font-weight:700;color:'+color+';margin-bottom:8px">'+(success?'Scores Submitted!':'Submission Issue')+'</div>'+
+    '<div style="font-size:13px;color:var(--text2);margin-bottom:4px">Week '+wd.week+' · Tee Time '+wd.teeTime+'</div>'+
+    '<div style="font-size:13px;font-weight:600;margin-bottom:12px">'+names+'</div>'+
+    '<div style="font-size:13px;color:var(--text2);background:var(--bg);padding:10px;border-radius:8px;margin-bottom:16px">'+message+'</div>'+
+    '<button onclick="this.closest(\'div[style*=fixed]\').remove();goTo(\'s-home\');renderHome();" style="width:100%;padding:12px;background:'+bg+';color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">OK</button>'+
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+async function retryPendingSubmissions(){
+  const db=getDB();
+  if(!db.pendingSubmissions||!db.pendingSubmissions.length||!db.sheetUrl)return;
+  const stillPending=[];
+  for(const item of db.pendingSubmissions){
+    try{
+      const r=await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveRound',year:item.year,data:item.wd})});
+      const d=await r.json();
+      if(!d.ok) stillPending.push(item);
+    }catch(e){
+      stillPending.push(item);
+    }
+  }
+  db.pendingSubmissions=stillPending;
+  saveDB(db);
+  if(stillPending.length===0 && db.pendingSubmissions){
+    showToast('✓ All pending scores synced successfully');
   }
 }
 
 // ── TEE TIME GRID ─────────────────────────────────────────────
-function populateTeeTimeSelect(){renderTeeTimeGrid();}
-function renderTeeTimeGrid(selected){
+var _teeTimeLiveCache=[]; // last fetched live rounds for this week/side
+
+function populateTeeTimeSelect(){
+  renderTeeTimeGrid(); // render immediately with whatever we have (fast)
+  refreshTeeTimeLiveData(); // then fetch live data in background and re-render
+}
+
+async function refreshTeeTimeLiveData(){
+  const db=getDB();const yr=getYear(db);
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  if(!db.sheetUrl){_teeTimeLiveCache=[];return;}
+  try{
+    const r=await fetch(db.sheetUrl+'?action=getLive&year='+encodeURIComponent(db.activeYear)+'&week='+wk);
+    const d=await r.json();
+    _teeTimeLiveCache=(d&&d.ok&&d.live)?d.live:[];
+  }catch(e){
+    _teeTimeLiveCache=[]; // fail quiet — grid still shows submitted rounds
+  }
+  // Re-render with whatever tee time is currently selected, preserving selection
+  const ttEl=document.getElementById('tee-time');
+  renderTeeTimeGrid(ttEl?ttEl.value:null);
+}
+
+function buildTeeTimeUsedMap(){
   const db=getDB();const yr=getYear(db);
   const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
   const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  const usedTimes=new Set(yr.weeks.filter(w=>w.week===wk&&w.side===side).map(w=>Number(w.teeTime)));
+  const usedMap={}; // tt -> {names:[...], status:'submitted'|'in_progress'}
+  // Completed/submitted rounds
+  yr.weeks.filter(w=>w.week===wk&&w.side===side).forEach(w=>{
+    const tt=Number(w.teeTime);
+    if(!usedMap[tt])usedMap[tt]={names:[],status:'submitted'};
+    (w.players||[]).forEach(p=>{if(p&&p.name)usedMap[tt].names.push(p.name);});
+  });
+  // In-progress (live) rounds — someone is mid-round at this tee time right now
+  (_teeTimeLiveCache||[]).forEach(lg=>{
+    if(!lg||lg.week!=wk||lg.side!==side)return;
+    const tt=Number(lg.teeTime);
+    if(usedMap[tt]&&usedMap[tt].status==='submitted')return; // already finished, keep that status
+    if(!usedMap[tt])usedMap[tt]={names:[],status:'in_progress'};
+    usedMap[tt].status='in_progress';
+    usedMap[tt].names=(lg.players||[]).map(p=>p&&p.name).filter(Boolean);
+  });
+  return usedMap;
+}
+
+function renderTeeTimeGrid(selected){
+  const usedMap=buildTeeTimeUsedMap();
   const grid=document.getElementById('tee-time-grid');if(!grid)return;
   grid.innerHTML=[1,2,3,4,5,6,7,8,9].map(n=>{
-    const used=usedTimes.has(n);
+    const info=usedMap[n];
+    const used=!!info;
+    const isInProgress=used&&info.status==='in_progress';
+    const namesShort=used?info.names.map(fname).join('/'):'';
     const isSelected=Number(selected)===n;
     const bg=isSelected?'var(--navy)':'var(--white)';
     const color=isSelected?'#fff':'var(--text)';
-    const border=isSelected?'2px solid var(--navy)':'2px solid var(--border)';
-    const opacity=used&&!isSelected?'0.45':'1';
+    const warnColor=isInProgress?'var(--gold-d)':'var(--red)';
+    const border=isSelected?'2px solid var(--navy)':used?'2px solid '+warnColor:'2px solid var(--border)';
     const sub=n===1?'1st out':n===9?'Last out':'';
-    return'<button onclick="selectTeeTime('+n+')" style="padding:12px 6px;border-radius:var(--rsm);border:'+border+';background:'+bg+';color:'+color+';font-size:22px;font-weight:700;cursor:pointer;opacity:'+opacity+';display:flex;flex-direction:column;align-items:center;gap:2px;-webkit-tap-highlight-color:transparent">'+n+(sub?'<span style="font-size:9px;font-weight:500;opacity:.7">'+sub+'</span>':'')+(used&&!isSelected?'<span style="font-size:9px;color:var(--red);font-weight:700">used</span>':'')+'</button>';
+    const statusIcon=isInProgress?'🟢':'⚠️';
+    return'<button onclick="selectTeeTime('+n+')" style="padding:10px 4px;border-radius:var(--rsm);border:'+border+';background:'+bg+';color:'+color+';cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;-webkit-tap-highlight-color:transparent;min-height:64px">'+
+      '<span style="font-size:20px;font-weight:700;line-height:1">'+n+'</span>'+
+      (sub?'<span style="font-size:8px;font-weight:500;opacity:.7">'+sub+'</span>':'')+
+      (used?'<span style="font-size:9px;font-weight:700;color:'+(isSelected?'#fff':warnColor)+';text-align:center;line-height:1.2;word-break:break-word;max-width:64px">'+statusIcon+' '+namesShort+'</span>':'')+
+      '</button>';
   }).join('');
+  // Small legend so the icons make sense
+  const legend=document.getElementById('tee-time-legend');
+  if(legend) legend.innerHTML='⚠️ = scores submitted &nbsp;&nbsp; 🟢 = round in progress right now';
 }
 function selectTeeTime(n){
-  const db=getDB();const yr=getYear(db);
-  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
-  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  const usedTimes=new Set(yr.weeks.filter(w=>w.week===wk&&w.side===side).map(w=>Number(w.teeTime)));
-  if(usedTimes.has(n)){
-    doConfirm('Tee Time '+n+' already has scores submitted','This is OK if you are a single or partial group playing with that tee time. Tap Confirm to continue.',()=>{applyTeeTimeSelection(n);});
+  const usedMap=buildTeeTimeUsedMap();
+  const info=usedMap[n];
+  if(info){
+    const names=info.names.join(', ');
+    const statusWord=info.status==='in_progress'?'is currently on the course (round in progress, not yet submitted)':'already submitted scores';
+    doConfirm(
+      '⚠️ Tee Time '+n+' is already taken',
+      names+' '+statusWord+' for this tee time. Only continue if you are absolutely certain you should ALSO be Tee Time '+n+' (e.g. a 5th/6th player joining their group). Otherwise go back and pick your actual tee time — selecting the wrong one will not erase their scores, but will create a separate entry that may need manual cleanup.',
+      ()=>{applyTeeTimeSelection(n);}
+    );
     return;
   }
   applyTeeTimeSelection(n);
