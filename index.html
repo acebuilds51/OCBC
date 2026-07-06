@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.13</title>
+<title>OCBC Golf League v2.16</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -246,7 +246,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.13</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.16</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -258,7 +258,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.13</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.16</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -376,6 +376,24 @@ label:first-child{margin-top:0}
 </div>
 
 <!-- RESULTS -->
+<!-- REVIEW SCREEN -->
+<div id="s-review" class="screen">
+  <header>
+    <div class="hdr-row">
+      <img class="hdr-logo" id="rev-logo" src="" alt="">
+      <div class="hdr-text"><h1>Review Scorecard</h1><p id="rev-sub">Check scores before submitting</p></div>
+    </div>
+  </header>
+  <div class="section">
+    <div id="rev-scorecard" style="overflow-x:auto;margin-bottom:12px"></div>
+    <div style="background:var(--navy-l);border:1px solid var(--navy);border-radius:var(--rsm);padding:10px 12px;font-size:12px;color:var(--navy);margin-bottom:12px">
+      ✏️ Tap any score to correct it. When everything looks right, tap <strong>Submit Scores</strong>.
+    </div>
+    <button class="btn btn-navy" style="width:100%;padding:14px;font-size:16px;font-weight:700" onclick="submitFromReview()">✅ Submit Scores</button>
+    <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="goBackToScoring()">← Go Back & Fix Scores</button>
+  </div>
+</div>
+
 <div id="s-results" class="screen">
   <header>
     <div class="hdr-row">
@@ -1658,6 +1676,10 @@ function finishRound(){
 }
 
 // ── CALC ─────────────────────────────────────────────────────
+// Store pending round data for review before final submit
+var _pendingWd=null;
+var _pendingHres=null;
+
 function calcResults(){
   const db=getDB();const yr=getYear(db);
   const side=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
@@ -1677,11 +1699,11 @@ function calcResults(){
     const bb=bScores.length?Math.min(...bScores):99;
     let w=null;
     if(ba<99&&bb<99){if(ba<bb)w='A';else if(bb<ba)w='B';}
-    else if(ba<99&&bb===99)w='A'; // Team A exists, Team B doesn't
+    else if(ba<99&&bb===99)w='A';
     return{hole,sc,ba,bb,w};
   });
 
-  // Best ball + presses pay immediately per foursome
+  // Money calc
   const money={};names.forEach(n=>money[n]=0);
   const hasTeamA=numPlayers>=1;
   const hasTeamB=numPlayers>=3;
@@ -1695,9 +1717,8 @@ function calcResults(){
     else if(pr.winner==='B'){money[names[2]]+=10;money[names[3]]+=10;money[names[0]]-=10;money[names[1]]-=10;}
   });
 
-  // Skins + CTP are league-wide — pending until all 9 tee times submit
   const roundId=wk+'_'+side+'_'+ST.teeTime+'_'+ST.players.map(p=>p.name).sort().join('|');
-  const wd={
+  _pendingWd={
     week:wk,side:side,year:db.activeYear,
     roundId:roundId,
     date:new Date().toLocaleDateString(),teeTime:ST.teeTime,
@@ -1708,30 +1729,130 @@ function calcResults(){
     presses:JSON.parse(JSON.stringify(ST.presses)),
     skinsSettled:false,skins:{},skinPay:0,ctpPay:0,leagueCTP:{}
   };
+  _pendingHres=hres;
 
-  // Only remove an existing entry if it's the SAME group resubmitting
-  // (matched by week+teeTime+side+same player names). A different group
-  // claiming the same tee time creates a separate entry instead of overwriting.
-  const sameGroupExisting=yr.weeks.find(w=>w.week===wk&&w.side===side&&w.teeTime===ST.teeTime&&w.roundId===roundId);
-  const differentGroupAtSameTee=yr.weeks.filter(w=>w.week===wk&&w.side===side&&w.teeTime===ST.teeTime&&w.roundId!==roundId);
+  // Show review screen instead of immediately submitting
+  renderReviewScreen(_pendingWd,hres,side,holes);
+  goTo('s-review');
+  // Push final live scores so Live tab shows completed state during review
+  saveLiveProgress();
+}
+
+function renderReviewScreen(wd,hres,side,holes){
+  const db=getDB();
+  const revSub=document.getElementById('rev-sub');
+  if(revSub)revSub.textContent='Week '+wd.week+' · '+wd.players.map(p=>fname(p.name)).join(' / ')+' · Tee '+wd.teeTime;
+  const revLogo=document.getElementById('rev-logo');
+  if(revLogo)revLogo.src=document.getElementById('logo-gl')?.src||'';
+
+  const par=holes.reduce((s,h)=>s+h.p,0);
+  let html='<table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">';
+  html+='<colgroup><col style="width:80px">'+holes.map(()=>'<col style="width:34px">').join('')+'<col style="width:38px"></colgroup>';
+  html+='<tr style="background:var(--navy);color:#fff"><th style="text-align:left;padding:4px 6px">Player</th>'+
+    holes.map(h=>`<th style="text-align:center;padding:3px 1px">H${h.n}<br><span style="font-weight:400;font-size:9px">${h.p}</span></th>`).join('')+
+    '<th style="text-align:center;padding:4px 2px">Tot</th></tr>';
+  html+='<tr style="background:var(--bg)"><td style="padding:3px 6px;font-size:10px;color:var(--text2)">Par</td>'+
+    holes.map(h=>`<td style="text-align:center;padding:3px 1px;font-size:10px;color:var(--text2)">${h.p}</td>`).join('')+
+    `<td style="text-align:center;padding:3px 1px;font-size:10px;color:var(--text2)">${par}</td></tr>`;
+
+  wd.players.forEach((pl,pi)=>{
+    const tot=wd.scores.reduce((s,sc)=>s+(sc['p'+pi]<99?sc['p'+pi]:0),0);
+    const diff=tot-par;
+    const diffStr=tot===0?'':diff===0?'E':diff>0?'+'+diff:''+diff;
+    const diffColor=diff<0?'var(--blue-d)':diff===0?'var(--text2)':'var(--red)';
+    html+='<tr style="border-bottom:1px solid var(--border)">';
+    html+=`<td style="padding:3px 6px;font-weight:600;font-size:12px">${fname(pl.name)}${pl.isSub?'*':''}</td>`;
+    holes.forEach((h,hi)=>{
+      const sc=wd.scores[hi];
+      const s=sc?sc['p'+pi]:99;
+      const d=s<99?s-h.p:null;
+      let cellStyle='text-align:center;padding:2px 1px;';
+      let innerStyle='display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;font-size:12px;border-radius:50%;';
+      if(d===null){html+=`<td style="${cellStyle}"><span style="color:var(--border)">-</span></td>`;return;}
+      if(d<=-2)innerStyle+='background:#7F77DD;color:#fff;font-weight:700;';
+      else if(d===-1)innerStyle+='background:var(--blue-d);color:#fff;font-weight:700;';
+      else innerStyle+='';
+      // Tappable to edit
+      html+=`<td style="${cellStyle}cursor:pointer" onclick="editReviewScore(${pi},${hi})"><span style="${innerStyle}">${s}</span></td>`;
+    });
+    html+=`<td style="text-align:center;padding:3px 2px;font-weight:700">${tot||'-'}<br><span style="font-size:9px;color:${diffColor}">${diffStr}</span></td>`;
+    html+='</tr>';
+  });
+  html+='</table>';
+
+  // Match result summary
+  html+=`<div style="margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:var(--rsm);font-size:13px">`;
+  html+=`<span style="font-weight:600">Match: </span>Team A (${wd.players.slice(0,2).map(p=>fname(p.name)).join('/')}) ${wd.awins} wins &nbsp;·&nbsp; Team B (${wd.players.slice(2,4).map(p=>fname(p.name)).join('/')}) ${wd.bwins} wins`;
+  html+=`</div>`;
+
+  const el=document.getElementById('rev-scorecard');
+  if(el)el.innerHTML=html;
+}
+
+function editReviewScore(playerIdx, holeIdx){
+  const hole=_pendingWd?_pendingWd.scores[holeIdx]:null;
+  if(!hole)return;
+  const currentScore=hole['p'+playerIdx]<99?hole['p'+playerIdx]:'';
+  const player=_pendingWd.players[playerIdx];
+  const holeName='Hole '+(_pendingWd.scores[holeIdx]?holeIdx+1:holeIdx+1);
+  const newVal=prompt(fname(player.name)+' — '+holeName+'\nEnter correct score:',currentScore);
+  if(newVal===null)return; // cancelled
+  const n=parseInt(newVal);
+  if(isNaN(n)||n<1||n>20){showToast('Please enter a valid score (1-20)');return;}
+  _pendingWd.scores[holeIdx]['p'+playerIdx]=n;
+  // Push corrected score to live tab immediately
+  saveLiveProgress();
+  // Recalculate totals and re-render
+  const db=getDB();const yr=getYear(db);
+  const side=_pendingWd.side;
+  const holes=HOLES[side];
+  renderReviewScreen(_pendingWd,_pendingHres,side,holes);
+}
+
+function goBackToScoring(){
+  // Go back to last hole of scoring so they can fix anything
+  goTo('s-scoring');
+  renderScoringHole();
+}
+
+function submitFromReview(){
+  if(!_pendingWd){showToast('No round data — please go back');return;}
+  const db=getDB();const yr=getYear(db);
+  const wk=_pendingWd.week;
+  const side=_pendingWd.side;
+
+  const sameGroupExisting=yr.weeks.find(w=>w.roundId===_pendingWd.roundId);
+  const differentGroupAtSameTee=yr.weeks.filter(w=>w.week===wk&&w.side===side&&w.teeTime===_pendingWd.teeTime&&w.roundId!==_pendingWd.roundId);
   if(sameGroupExisting){
-    yr.weeks=yr.weeks.filter(w=>w.roundId!==roundId);
+    yr.weeks=yr.weeks.filter(w=>w.roundId!==_pendingWd.roundId);
   }
   if(differentGroupAtSameTee.length){
-    showToast('⚠️ Another group already used Tee '+ST.teeTime+' — your scores were saved separately, please flag this to the commissioner');
+    showToast('⚠️ Another group already used Tee '+_pendingWd.teeTime+' — flagged for commissioner');
   }
-  yr.weeks.push(wd);
+  yr.weeks.push(_pendingWd);
   saveDB(db);
 
-  // Check if all 9 tee times submitted
   const thisWeekRounds=yr.weeks.filter(w=>w.week===wk&&w.side===side);
   const allIn=thisWeekRounds.length>=9;
-  if(allIn) calcLeagueWideSkinsCTP(db,yr,wk,side);
+  if(allIn)calcLeagueWideSkinsCTP(db,yr,wk,side);
 
-  const savedWd=yr.weeks.find(w=>w.roundId===roundId)||wd;
+  const savedWd=yr.weeks.find(w=>w.roundId===_pendingWd.roundId)||_pendingWd;
+  const holes=HOLES[side];
+  const numPlayers=savedWd.players.length;
+  const hres=holes.map((hole,i)=>{
+    const sc=savedWd.scores[i];
+    const ba=Math.min(...[sc.p0,numPlayers>1?sc.p1:99].filter(s=>s<99));
+    const bb=Math.min(...[numPlayers>2?sc.p2:99,numPlayers>3?sc.p3:99].filter(s=>s<99));
+    let w=null;
+    if(ba<99&&bb<99){if(ba<bb)w='A';else if(bb<ba)w='B';}
+    else if(ba<99&&bb===99)w='A';
+    return{hole,sc,ba,bb,w};
+  });
+
   syncToSheet(savedWd);
   renderResults(savedWd,hres,savedWd.skins||{},savedWd.skinPay||0,savedWd.ctpPay||0,allIn,savedWd.leagueCTP||{});
   renderHome();renderLb();renderHistory();renderCTP();
+  _pendingWd=null;_pendingHres=null;
   goTo('s-results');
 }
 
@@ -1780,6 +1901,7 @@ function hideLivePeek(){
   const overlay=document.getElementById('live-peek-overlay');
   if(overlay)overlay.style.display='none';
 }
+function closeLivePeek(){ hideLivePeek(); } // alias for onclick calls
 async function fetchLivePeek(){
   const db=getDB();
   if(!db.sheetUrl){
@@ -2821,8 +2943,7 @@ function syncToSheet(wd){
 
 async function saveRound(wd){
   const db=getDB();const yr=getYear(db);
-  if(!yr.weeks)yr.weeks=[];
-  yr.weeks.push(wd);saveDB(db);
+  // NOTE: yr.weeks already updated by submitFromReview — don't push again
   ST._pastMode=false;ST._pastWeek=null;ST._pastSide=null;ST._pastTeeTime=null;
   clearSTProgress();
 
@@ -4764,6 +4885,7 @@ function normalizeLineupNames(lineup, players){
 }
 
 function _renderThisWeekInner(db,yr,wk,lineup,el){
+  try{
   // Normalize names against current roster before rendering
   lineup = normalizeLineupNames(lineup, db&&db.players?db.players:[]);
   var html = '';
@@ -4946,6 +5068,10 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
   }
 
   el.innerHTML = html;
+  }catch(err){
+    console.error('_renderThisWeekInner error:',err);
+    el.innerHTML='<div style="color:var(--red);padding:16px;font-size:13px;font-weight:600">⚠️ '+err.message+'</div>';
+  }
 }
 
 
