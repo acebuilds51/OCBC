@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.16</title>
+<title>OCBC Golf League v2.17</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -246,7 +246,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.16</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.17</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -258,7 +258,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.16</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.17</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -1756,6 +1756,7 @@ function renderReviewScreen(wd,hres,side,holes){
     `<td style="text-align:center;padding:3px 1px;font-size:10px;color:var(--text2)">${par}</td></tr>`;
 
   wd.players.forEach((pl,pi)=>{
+    const team=pi<=1?'A':'B';
     const tot=wd.scores.reduce((s,sc)=>s+(sc['p'+pi]<99?sc['p'+pi]:0),0);
     const diff=tot-par;
     const diffStr=tot===0?'':diff===0?'E':diff>0?'+'+diff:''+diff;
@@ -1766,14 +1767,16 @@ function renderReviewScreen(wd,hres,side,holes){
       const sc=wd.scores[hi];
       const s=sc?sc['p'+pi]:99;
       const d=s<99?s-h.p:null;
-      let cellStyle='text-align:center;padding:2px 1px;';
+      // Determine if this team won this hole
+      const winner=hres[hi]?hres[hi].w:null;
+      const teamWon=winner===team;
+      let cellStyle='text-align:center;padding:2px 1px;cursor:pointer;';
+      if(teamWon) cellStyle+='background:rgba(29,158,117,0.15);';
       let innerStyle='display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;font-size:12px;border-radius:50%;';
       if(d===null){html+=`<td style="${cellStyle}"><span style="color:var(--border)">-</span></td>`;return;}
       if(d<=-2)innerStyle+='background:#7F77DD;color:#fff;font-weight:700;';
       else if(d===-1)innerStyle+='background:var(--blue-d);color:#fff;font-weight:700;';
-      else innerStyle+='';
-      // Tappable to edit
-      html+=`<td style="${cellStyle}cursor:pointer" onclick="editReviewScore(${pi},${hi})"><span style="${innerStyle}">${s}</span></td>`;
+      html+=`<td style="${cellStyle}" onclick="editReviewScore(${pi},${hi})"><span style="${innerStyle}">${s}</span></td>`;
     });
     html+=`<td style="text-align:center;padding:3px 2px;font-weight:700">${tot||'-'}<br><span style="font-size:9px;color:${diffColor}">${diffStr}</span></td>`;
     html+='</tr>';
@@ -1802,10 +1805,20 @@ function editReviewScore(playerIdx, holeIdx){
   _pendingWd.scores[holeIdx]['p'+playerIdx]=n;
   // Push corrected score to live tab immediately
   saveLiveProgress();
-  // Recalculate totals and re-render
+  // Recalculate hres so hole-win highlights reflect the corrected score
   const db=getDB();const yr=getYear(db);
   const side=_pendingWd.side;
   const holes=HOLES[side];
+  const numP=_pendingWd.players.length;
+  _pendingHres=holes.map((hole,i)=>{
+    const sc=_pendingWd.scores[i];
+    const ba=Math.min(...[sc.p0,numP>1?sc.p1:99].filter(s=>s<99).concat([99]));
+    const bb=Math.min(...[numP>2?sc.p2:99,numP>3?sc.p3:99].filter(s=>s<99).concat([99]));
+    let w=null;
+    if(ba<99&&bb<99){if(ba<bb)w='A';else if(bb<ba)w='B';}
+    else if(ba<99&&bb===99)w='A';
+    return{hole,sc,ba,bb,w};
+  });
   renderReviewScreen(_pendingWd,_pendingHres,side,holes);
 }
 
