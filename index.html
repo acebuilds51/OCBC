@@ -1100,6 +1100,17 @@ document.addEventListener('DOMContentLoaded',()=>{
   initApp();
 });
 
+// Retry queued submissions the moment connectivity returns, and keep
+// polling periodically in case 'online' doesn't fire reliably (common on
+// iOS Safari with flaky course WiFi/cell signal).
+window.addEventListener('online',()=>{ retryPendingSubmissions().then(()=>renderHome()); });
+setInterval(()=>{
+  const db=getDB();
+  if(db.pendingSubmissions&&db.pendingSubmissions.length){
+    retryPendingSubmissions().then(()=>renderHome());
+  }
+},45000);
+
 function setLogos(){
   // Use safe null checks for all logo elements
   const safe=(id,prop,val)=>{const el=document.getElementById(id);if(el)el[prop]=val;};
@@ -1115,12 +1126,20 @@ function setLogos(){
 }
 
 async function initApp(){
-  retryPendingSubmissions();
   _skipLoad=false;
   // Hard fallback — always get to home screen within 4 seconds
   const hardFallback=setTimeout(()=>{ showHomeScreen(); },4000);
   try{
     armSkipBtn();
+    // CRITICAL: flush any queued unsynced round to the sheet FIRST and WAIT
+    // for it. Previously this ran unawaited in parallel with loadFromSheet,
+    // which reads the sheet and then blindly overwrites local data — if that
+    // overwrite landed before the queued round reached the sheet, the round
+    // vanished from the phone with nothing left on the server either.
+    // Also, getDB()/saveDB() read-modify-write the ENTIRE db object each
+    // call, so two concurrent async functions doing that is a lost-update
+    // race regardless of network timing — awaiting removes the race.
+    await retryPendingSubmissions();
     const db=getDB();
     if(db.sheetUrl){
       setLoadMsg('Connecting to Google Sheets...');
@@ -1194,7 +1213,28 @@ async function loadFromSheet(url, year){
           };
         }
       });
-      yr.weeks=d.rounds;
+      // MERGE, don't replace. Any local round whose roundId isn't present
+      // in the server's list is either (a) still queued in
+      // db.pendingSubmissions and hasn't landed yet, or (b) a leftover from
+      // an in-flight submission we haven't confirmed either way. Either way
+      // it must NOT be silently discarded just because this particular
+      // fetch caught the server before the write landed — that's exactly
+      // what caused a submitted round to vanish from a phone with nothing
+      // ever making it to the Sheet. The Sheet's copy always wins for any
+      // roundId it does contain (server is source of truth once synced).
+      const serverIds=new Set(d.rounds.map(w=>w.roundId).filter(Boolean));
+      const pendingIds=new Set((db.pendingSubmissions||[]).map(p=>p.wd&&p.wd.roundId).filter(Boolean));
+      const localOnly=(yr.weeks||[]).filter(w=>{
+        if(!w.roundId) return false; // no roundId = pre-fix legacy row, can't safely dedupe, drop it
+        if(serverIds.has(w.roundId)) return false; // server already has it — use server's copy
+        // Keep it if it's known-pending, OR if it's recent (submitted in the
+        // last 6 hours) — recent-but-unflagged covers the case where the
+        // pending queue itself hasn't been written yet when this runs.
+        const isPending=pendingIds.has(w.roundId);
+        const isRecent=w._localSavedAt && (Date.now()-w._localSavedAt) < 6*60*60*1000;
+        return isPending||isRecent;
+      });
+      yr.weeks=d.rounds.concat(localOnly);
       // Restore settlement data onto newly loaded rounds
       yr.weeks.forEach(wd=>{
         const key=wd.week+'_'+wd.teeTime;
@@ -1366,12 +1406,18 @@ function renderHome(){
   // Show scramble or rainout banner
   const banner=document.getElementById('week-alert-banner');
   if(banner){
+    let bannerHtml='';
+    const pendingCount=(db.pendingSubmissions||[]).length;
+    if(pendingCount>0){
+      bannerHtml+=`<div style="background:#fdeaea;border-left:4px solid var(--red);padding:10px 14px;font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px">⚠️ ${pendingCount} round${pendingCount>1?'s':''} not yet synced to Google Sheets — keep this phone connected to WiFi/cell signal until it clears. <span style="text-decoration:underline;cursor:pointer" onclick="retryPendingSubmissions().then(()=>{renderHome();showToast('Retry attempted');})">Retry now</span></div>`;
+    }
     if(isRainoutWeek(yr)){
-      banner.innerHTML=`<div style="background:#e8ecf5;border-left:4px solid var(--navy);padding:10px 14px;font-size:13px;font-weight:600;color:var(--navy)">⛅ Week ${wk} is marked as a RAINOUT — no scores this week</div>`;
+      bannerHtml+=`<div style="background:#e8ecf5;border-left:4px solid var(--navy);padding:10px 14px;font-size:13px;font-weight:600;color:var(--navy)">⛅ Week ${wk} is marked as a RAINOUT — no scores this week</div>`;
     } else if(isScrambleWeek(yr)){
       const pot=yr.scramblePot||0;const pp=(pot/4).toFixed(2);
-      banner.innerHTML=`<div style="background:var(--gold-l);border-left:4px solid var(--gold);padding:10px 14px;font-size:13px;font-weight:600;color:var(--gold-d)">🏌️ Week ${wk} — 4-Person SCRAMBLE${pot>0?` — $${pot} pot ($${pp}/player)`:' — set pot in Admin'}</div>`;
-    } else { banner.innerHTML=''; }
+      bannerHtml+=`<div style="background:var(--gold-l);border-left:4px solid var(--gold);padding:10px 14px;font-size:13px;font-weight:600;color:var(--gold-d)">🏌️ Week ${wk} — 4-Person SCRAMBLE${pot>0?` — $${pot} pot ($${pp}/player)`:' — set pot in Admin'}</div>`;
+    }
+    banner.innerHTML=bannerHtml;
   }
 
   document.getElementById('h-par3s').innerHTML=par3s.map(h=>
@@ -1842,6 +1888,7 @@ function submitFromReview(){
   if(differentGroupAtSameTee.length){
     showToast('⚠️ Another group already used Tee '+_pendingWd.teeTime+' — flagged for commissioner');
   }
+  _pendingWd._localSavedAt=Date.now();
   yr.weeks.push(_pendingWd);
   saveDB(db);
 
