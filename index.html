@@ -375,6 +375,27 @@ label:first-child{margin-top:0}
   <div class="section" id="sc-body"></div>
 </div>
 
+<!-- SCRAMBLE SCORING SCREEN -->
+<div id="s-scramble" class="screen">
+  <header>
+    <div class="hdr-row">
+      <img class="hdr-logo" id="scr-logo" src="" alt="">
+      <div class="hdr-text">
+        <h1 id="scr-hole-hdr">Hole 1 · Par 4</h1>
+        <p id="scr-sub"></p>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        <button onclick="showLivePeek()" style="background:var(--navy-l);border:1px solid var(--border);border-radius:20px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--navy);font-weight:600">📊 Live</button>
+      </div>
+    </div>
+  </header>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 15px;background:var(--white);border-bottom:1px solid var(--border)">
+    <span style="font-size:12px;color:var(--text2)">Hole <span id="scr-prog">1</span> of 9</span>
+    <div id="scr-dots" class="hole-dots"></div>
+  </div>
+  <div class="section" id="scr-body"></div>
+</div>
+
 <!-- RESULTS -->
 <!-- REVIEW SCREEN -->
 <div id="s-review" class="screen">
@@ -720,12 +741,15 @@ label:first-child{margin-top:0}
 
       <div class="card">
         <div class="card-title">🏌️ Scramble Week Settings</div>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:8px">Designate a week as the 4-person scramble (default: Week 14). Set the total prize pot — split evenly among winning team players.</p>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px">Designate a week as the 4-person scramble (default: Week 14).</p>
         <label>Scramble Week Number</label>
         <input type="number" id="scramble-week-num" min="1" max="16" value="14" onchange="saveScrambleSettings()">
-        <label style="margin-top:10px">Total Scramble Prize Pot ($)</label>
-        <input type="number" id="scramble-pot" min="0" value="0" placeholder="e.g. 200" onchange="saveScrambleSettings()">
-        <p style="font-size:11px;color:var(--text2);margin-top:4px">Each of the 4 winning players receives pot ÷ 4</p>
+        <label style="margin-top:10px">Winning Team Pot ($)</label>
+        <input type="number" id="scramble-pot" min="0" value="120" placeholder="e.g. 120" onchange="saveScrambleSettings()">
+        <p style="font-size:11px;color:var(--text2);margin-top:2px">Split evenly among 4 winning players ($30/player at $120)</p>
+        <label style="margin-top:10px">Skins & CTP Pot ($)</label>
+        <input type="number" id="scramble-skins-pot" min="0" value="130" placeholder="e.g. 130" onchange="saveScrambleSettings()">
+        <p style="font-size:11px;color:var(--text2);margin-top:2px">Split across 9 holes for skins; CTP paid from this pot</p>
         <div id="scramble-status" style="margin-top:8px;font-size:13px;font-weight:600;color:var(--green-d)"></div>
       </div>
 
@@ -1015,7 +1039,7 @@ function mkDB(){
   return{
     players:["Bob Pfiefer", "Bob Sanders", "Brendan Molloy", "Brian Sanders", "Chris Brady", "Chuck Geis", "Chuck Steinmetz", "Curtis Uren", "Dan Sulisz", "Doug Currie", "Doug Young", "Eric Smith", "Gregg Keller", "Herb Freibe", "Jeff Jarvis", "Jeff Landry", "Jim Fields", "Joe Boyle", "Joe Leininger", "Joe Szydlowski", "John Arthurs", "John Dent", "John Mariani", "John Powers", "Kris Mclogan", "Mike Dentamaro", "Nate Edmonds", "Nemo Yaldo", "Paul Rolind", "Pete Harrop", "Rick Kincaid", "Sam Shanbom", "Steve Shepard", "Steve Tomba", "Tod Mack", "Tom Fields", "Tony Edmonds", "Vince Santavicca"],
     subs:[],
-    years:{[yr]:{weeks:[],currentWeek:1,currentSide:'front',seasonStartDate:'',leagueDay:4,scrambleWeek:14,scramblePot:0,sideOverride:null,rainouts:[]}},
+    years:{[yr]:{weeks:[],currentWeek:1,currentSide:'front',seasonStartDate:'',leagueDay:4,scrambleWeek:14,scramblePot:120,scrambleSkinsPot:130,sideOverride:null,rainouts:[]}},
     activeYear:yr,
     sheetUrl:'',
     adminPw: DEFAULT_PW,
@@ -1023,7 +1047,7 @@ function mkDB(){
   };
 }
 function getYear(db){
-  if(!db.years[db.activeYear]) db.years[db.activeYear]={weeks:[],currentWeek:1,currentSide:'front',seasonStartDate:'',leagueDay:4,scrambleWeek:14,scramblePot:0,sideOverride:null,rainouts:[]};
+  if(!db.years[db.activeYear]) db.years[db.activeYear]={weeks:[],currentWeek:1,currentSide:'front',seasonStartDate:'',leagueDay:4,scrambleWeek:14,scramblePot:120,scrambleSkinsPot:130,sideOverride:null,rainouts:[]};
   return db.years[db.activeYear];
 }
 
@@ -1071,7 +1095,7 @@ function isRainoutWeek(yr){
 
 // ── STATE ────────────────────────────────────────────────────
 // ── HARDCODED SHEET URL — update this when Apps Script is redeployed ──
-const SHEET_URL='https://script.google.com/macros/s/AKfycbz_TSo0WL42jo5LwWtaKSzHS4xZ8R80AZ_IPjilNJaYjEygsW6LqxsQxy2Go8bIvF8LSA/exec';
+const SHEET_URL='https://script.google.com/macros/s/AKfycbyC3yv3fr4zzVbaAUuaBebWYRVxgwFExTcdfjDF76Mkx9E9qe5VgAoI5uFUHrPZJ2oiEg/exec';
 
 let ST={players:[],p5:null,holeIdx:0,scores:[],ctpWinners:{},p5scores:[],presses:[],awins:0,bwins:0};
 
@@ -1100,17 +1124,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   initApp();
 });
 
-// Retry queued submissions the moment connectivity returns, and keep
-// polling periodically in case 'online' doesn't fire reliably (common on
-// iOS Safari with flaky course WiFi/cell signal).
-window.addEventListener('online',()=>{ retryPendingSubmissions().then(()=>renderHome()); });
-setInterval(()=>{
-  const db=getDB();
-  if(db.pendingSubmissions&&db.pendingSubmissions.length){
-    retryPendingSubmissions().then(()=>renderHome());
-  }
-},45000);
-
 function setLogos(){
   // Use safe null checks for all logo elements
   const safe=(id,prop,val)=>{const el=document.getElementById(id);if(el)el[prop]=val;};
@@ -1126,20 +1139,12 @@ function setLogos(){
 }
 
 async function initApp(){
+  retryPendingSubmissions();
   _skipLoad=false;
   // Hard fallback — always get to home screen within 4 seconds
   const hardFallback=setTimeout(()=>{ showHomeScreen(); },4000);
   try{
     armSkipBtn();
-    // CRITICAL: flush any queued unsynced round to the sheet FIRST and WAIT
-    // for it. Previously this ran unawaited in parallel with loadFromSheet,
-    // which reads the sheet and then blindly overwrites local data — if that
-    // overwrite landed before the queued round reached the sheet, the round
-    // vanished from the phone with nothing left on the server either.
-    // Also, getDB()/saveDB() read-modify-write the ENTIRE db object each
-    // call, so two concurrent async functions doing that is a lost-update
-    // race regardless of network timing — awaiting removes the race.
-    await retryPendingSubmissions();
     const db=getDB();
     if(db.sheetUrl){
       setLoadMsg('Connecting to Google Sheets...');
@@ -1213,28 +1218,7 @@ async function loadFromSheet(url, year){
           };
         }
       });
-      // MERGE, don't replace. Any local round whose roundId isn't present
-      // in the server's list is either (a) still queued in
-      // db.pendingSubmissions and hasn't landed yet, or (b) a leftover from
-      // an in-flight submission we haven't confirmed either way. Either way
-      // it must NOT be silently discarded just because this particular
-      // fetch caught the server before the write landed — that's exactly
-      // what caused a submitted round to vanish from a phone with nothing
-      // ever making it to the Sheet. The Sheet's copy always wins for any
-      // roundId it does contain (server is source of truth once synced).
-      const serverIds=new Set(d.rounds.map(w=>w.roundId).filter(Boolean));
-      const pendingIds=new Set((db.pendingSubmissions||[]).map(p=>p.wd&&p.wd.roundId).filter(Boolean));
-      const localOnly=(yr.weeks||[]).filter(w=>{
-        if(!w.roundId) return false; // no roundId = pre-fix legacy row, can't safely dedupe, drop it
-        if(serverIds.has(w.roundId)) return false; // server already has it — use server's copy
-        // Keep it if it's known-pending, OR if it's recent (submitted in the
-        // last 6 hours) — recent-but-unflagged covers the case where the
-        // pending queue itself hasn't been written yet when this runs.
-        const isPending=pendingIds.has(w.roundId);
-        const isRecent=w._localSavedAt && (Date.now()-w._localSavedAt) < 6*60*60*1000;
-        return isPending||isRecent;
-      });
-      yr.weeks=d.rounds.concat(localOnly);
+      yr.weeks=d.rounds;
       // Restore settlement data onto newly loaded rounds
       yr.weeks.forEach(wd=>{
         const key=wd.week+'_'+wd.teeTime;
@@ -1406,18 +1390,12 @@ function renderHome(){
   // Show scramble or rainout banner
   const banner=document.getElementById('week-alert-banner');
   if(banner){
-    let bannerHtml='';
-    const pendingCount=(db.pendingSubmissions||[]).length;
-    if(pendingCount>0){
-      bannerHtml+=`<div style="background:#fdeaea;border-left:4px solid var(--red);padding:10px 14px;font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px">⚠️ ${pendingCount} round${pendingCount>1?'s':''} not yet synced to Google Sheets — keep this phone connected to WiFi/cell signal until it clears. <span style="text-decoration:underline;cursor:pointer" onclick="retryPendingSubmissions().then(()=>{renderHome();showToast('Retry attempted');})">Retry now</span></div>`;
-    }
     if(isRainoutWeek(yr)){
-      bannerHtml+=`<div style="background:#e8ecf5;border-left:4px solid var(--navy);padding:10px 14px;font-size:13px;font-weight:600;color:var(--navy)">⛅ Week ${wk} is marked as a RAINOUT — no scores this week</div>`;
+      banner.innerHTML=`<div style="background:#e8ecf5;border-left:4px solid var(--navy);padding:10px 14px;font-size:13px;font-weight:600;color:var(--navy)">⛅ Week ${wk} is marked as a RAINOUT — no scores this week</div>`;
     } else if(isScrambleWeek(yr)){
       const pot=yr.scramblePot||0;const pp=(pot/4).toFixed(2);
-      bannerHtml+=`<div style="background:var(--gold-l);border-left:4px solid var(--gold);padding:10px 14px;font-size:13px;font-weight:600;color:var(--gold-d)">🏌️ Week ${wk} — 4-Person SCRAMBLE${pot>0?` — $${pot} pot ($${pp}/player)`:' — set pot in Admin'}</div>`;
-    }
-    banner.innerHTML=bannerHtml;
+      banner.innerHTML=`<div style="background:var(--gold-l);border-left:4px solid var(--gold);padding:10px 14px;font-size:13px;font-weight:600;color:var(--gold-d)">🏌️ Week ${wk} — 4-Person SCRAMBLE${pot>0?` — $${pot} pot ($${pp}/player)`:' — set pot in Admin'}</div>`;
+    } else { banner.innerHTML=''; }
   }
 
   document.getElementById('h-par3s').innerHTML=par3s.map(h=>
@@ -1509,7 +1487,387 @@ function _startScoringConfirmed(){
   });
   ST.p5scores=holes.map(h=>h.p); // one score per hole for p5
   ST.ctpWinners={};ST.presses=[];
+
+  // Route to scramble mode if it's scramble week
+  if(!ST._pastMode && isScrambleWeek(yr)){
+    SCR.scores=holes.map(h=>h.p);
+    SCR.ctpWinners={};
+    SCR.holeIdx=0;
+    renderScrambleHole();
+    goTo('s-scramble');
+    return;
+  }
+
   renderScoringHole();goTo('s-scoring');
+}
+
+// ── SCRAMBLE SCORING ─────────────────────────────────────────
+const SCR={scores:[],ctpWinners:{},holeIdx:0};
+
+function renderScrambleHole(){
+  const db=getDB();const yr=getYear(db);
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const holes=HOLES[side];
+  const hole=holes[SCR.holeIdx];
+  const isLast=SCR.holeIdx===8;
+
+  // Header
+  const hdr=document.getElementById('scr-hole-hdr');
+  if(hdr)hdr.textContent='Hole '+hole.n+' · Par '+hole.p;
+  const sub=document.getElementById('scr-sub');
+  if(sub)sub.textContent='🏌️ Scramble · Tee '+ST.teeTime+' · '+ST.players.map(p=>fname(p.name)).join('/');
+
+  // Progress dots
+  const dotsEl=document.getElementById('scr-dots');
+  if(dotsEl)dotsEl.innerHTML=holes.map((_,i)=>
+    '<span class="hole-dot'+(i===SCR.holeIdx?' active':i<SCR.holeIdx?' done':'')+'"></span>'
+  ).join('');
+  const progEl=document.getElementById('scr-prog');
+  if(progEl)progEl.textContent=SCR.holeIdx+1;
+
+  const score=SCR.scores[SCR.holeIdx];
+  const diff=score-hole.p;
+  const diffStr=diff===0?'E':diff>0?'+'+diff:''+diff;
+  const diffColor=diff<0?'var(--blue-d)':diff===0?'var(--text2)':'var(--red)';
+
+  // CTP for par 3s
+  let ctpHtml='';
+  if(hole.p===3){
+    const ctpVal=SCR.ctpWinners[hole.n]||'';
+    const opts='<option value="">Select CTP winner</option>'+
+      '<option value="__none__">No one in our group</option>'+
+      ST.players.map(p=>`<option value="${p.name}"${ctpVal===p.name?' selected':''}>${p.name}</option>`).join('');
+    ctpHtml=`<div style="margin-top:12px;padding:10px 12px;background:var(--gold-l);border-radius:var(--rsm)">
+      <div style="font-size:12px;font-weight:700;color:var(--gold-d);margin-bottom:6px">🎯 CTP — Hole ${hole.n}</div>
+      <select id="scr-ctp" onchange="scrSaveCtp(${hole.n})" style="width:100%">${opts}</select>
+    </div>`;
+  }
+
+  // Running total
+  const runTotal=SCR.scores.slice(0,SCR.holeIdx+1).reduce((s,v)=>s+v,0);
+  const runPar=holes.slice(0,SCR.holeIdx+1).reduce((s,h)=>s+h.p,0);
+  const runDiff=runTotal-runPar;
+  const runStr=runDiff===0?'E':runDiff>0?'+'+runDiff:''+runDiff;
+
+  document.getElementById('scr-body').innerHTML=`
+    <div style="padding:16px 15px">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px">Team score — Hole ${hole.n} (Par ${hole.p})</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:20px">
+          <button onclick="scrAdj(-1)" style="width:52px;height:52px;border-radius:50%;border:2px solid var(--navy);background:var(--white);font-size:28px;cursor:pointer;color:var(--navy);font-weight:300">−</button>
+          <div style="text-align:center">
+            <div style="font-size:56px;font-weight:700;color:var(--navy);line-height:1">${score}</div>
+            <div style="font-size:16px;font-weight:600;color:${diffColor}">${diffStr}</div>
+          </div>
+          <button onclick="scrAdj(1)" style="width:52px;height:52px;border-radius:50%;border:2px solid var(--navy);background:var(--white);font-size:28px;cursor:pointer;color:var(--navy);font-weight:300">+</button>
+        </div>
+      </div>
+      ${ctpHtml}
+      <div style="margin-top:16px;padding:8px 12px;background:var(--bg);border-radius:var(--rsm);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;color:var(--text2)">Running total through hole ${SCR.holeIdx+1}</span>
+        <span style="font-size:14px;font-weight:700;color:${runDiff<=0?'var(--blue-d)':'var(--red)'}">${runTotal} (${runStr})</span>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px">
+        ${SCR.holeIdx>0?`<button class="btn btn-secondary" style="flex:1" onclick="scrPrev()">← Back</button>`:''}
+        <button class="btn ${isLast?'btn-gold':'btn-navy'}" style="flex:2" onclick="${isLast?'scrFinish()':'scrNext()'}">
+          ${isLast?'✓ Review & Submit':'Next Hole →'}
+        </button>
+      </div>
+      ${SCR.holeIdx===0?`<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="goBackToSetup()">✏️ Edit Setup</button>`:''}
+    </div>`;
+}
+
+function scrAdj(d){
+  const db=getDB();const yr=getYear(db);
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const hole=HOLES[side][SCR.holeIdx];
+  SCR.scores[SCR.holeIdx]=Math.max(1,SCR.scores[SCR.holeIdx]+d);
+  renderScrambleHole();
+  scrSaveLive();
+}
+
+function scrSaveCtp(holeNum){
+  const el=document.getElementById('scr-ctp');
+  if(el) SCR.ctpWinners[holeNum]=el.value==='__none__'?'':el.value;
+}
+
+function scrNext(){
+  scrSaveCtp(HOLES[getYear(getDB()).seasonStartDate?calcCurrentSide(getYear(getDB())):getYear(getDB()).currentSide][SCR.holeIdx].n);
+  SCR.holeIdx++;
+  renderScrambleHole();
+  scrSaveLive();
+}
+
+function scrPrev(){
+  SCR.holeIdx--;
+  renderScrambleHole();
+}
+
+async function scrSaveLive(){
+  const db=getDB();if(!db.sheetUrl)return;
+  const yr=getYear(db);
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  try{
+    await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
+      action:'saveLive',
+      year:db.activeYear,
+      data:{
+        week:wk,side,teeTime:ST.teeTime,
+        players:ST.players,
+        holeIdx:SCR.holeIdx,
+        scores:SCR.scores.map((s,i)=>({p0:s,p1:s,p2:s,p3:s})), // all same for scramble
+        ctpWinners:SCR.ctpWinners,
+        isScramble:true,
+        timestamp:Date.now()
+      }
+    })});
+  }catch(e){}
+}
+
+function scrFinish(){
+  const db=getDB();const yr=getYear(db);
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const holes=HOLES[side];
+  // Validate CTP on par 3s
+  const par3s=holes.filter(h=>h.p===3);
+  for(const h of par3s){
+    if(!SCR.ctpWinners[h.n]){
+      doConfirm('CTP Required','Please select a CTP winner (or "No one in our group") for Hole '+h.n+' before submitting.',()=>{
+        SCR.holeIdx=holes.findIndex(x=>x.n===h.n);
+        renderScrambleHole();
+      });
+      return;
+    }
+  }
+  renderScrambleReview();
+  goTo('s-review');
+}
+
+function renderScrambleReview(){
+  const db=getDB();const yr=getYear(db);
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const holes=HOLES[side];
+  const par=holes.reduce((s,h)=>s+h.p,0);
+  const total=SCR.scores.reduce((s,v)=>s+v,0);
+  const diff=total-par;
+  const diffStr=diff===0?'E':diff>0?'+'+diff:''+diff;
+  const diffColor=diff<0?'var(--blue-d)':diff===0?'var(--text2)':'var(--red)';
+
+  const revSub=document.getElementById('rev-sub');
+  if(revSub)revSub.textContent='Scramble · Week '+yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek+' · '+ST.players.map(p=>fname(p.name)).join(' / ')+' · Tee '+ST.teeTime;
+
+  let html='<div style="margin-bottom:10px;padding:8px 10px;background:var(--gold-l);border:1px solid var(--gold);border-radius:var(--rsm);font-size:13px;font-weight:600;color:var(--gold-d)">🏌️ Scramble Week — Team Score Review</div>';
+  html+='<table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">';
+  html+='<colgroup><col style="width:60px">'+holes.map(()=>'<col style="width:30px">').join('')+'<col style="width:38px"></colgroup>';
+  html+='<tr style="background:var(--navy);color:#fff"><th style="text-align:left;padding:4px 6px;font-size:10px">Team</th>'+
+    holes.map(h=>`<th style="text-align:center;padding:3px 1px">H${h.n}<br><span style="font-weight:400;font-size:9px">${h.p}</span></th>`).join('')+
+    '<th style="text-align:center;padding:4px 2px">Tot</th></tr>';
+  html+='<tr style="background:var(--bg)"><td style="padding:3px 6px;font-size:10px;color:var(--text2)">Par</td>'+
+    holes.map(h=>`<td style="text-align:center;padding:3px 1px;font-size:10px;color:var(--text2)">${h.p}</td>`).join('')+
+    `<td style="text-align:center;font-size:10px;color:var(--text2)">${par}</td></tr>`;
+
+  // Team row
+  html+='<tr style="border-bottom:1px solid var(--border)">';
+  html+=`<td style="padding:4px 6px;font-weight:600;font-size:11px">${ST.players.map(p=>fname(p.name)).join('/')}</td>`;
+  holes.forEach((h,hi)=>{
+    const s=SCR.scores[hi];
+    const d=s-h.p;
+    let inner=`display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;font-size:12px;border-radius:50%;`;
+    if(d<=-2)inner+='background:#7F77DD;color:#fff;font-weight:700;';
+    else if(d===-1)inner+='background:var(--blue-d);color:#fff;font-weight:700;';
+    html+=`<td style="text-align:center;padding:2px 1px;cursor:pointer" onclick="editScrambleScore(${hi})"><span style="${inner}">${s}</span></td>`;
+  });
+  html+=`<td style="text-align:center;padding:3px 2px;font-weight:700">${total}<br><span style="font-size:9px;color:${diffColor}">${diffStr}</span></td>`;
+  html+='</tr></table>';
+
+  // CTP winners
+  const par3s=holes.filter(h=>h.p===3);
+  if(par3s.length){
+    html+='<div style="margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:var(--rsm)">';
+    html+='<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">🎯 CTP Winners</div>';
+    par3s.forEach(h=>{
+      const w=SCR.ctpWinners[h.n];
+      html+=`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
+        <span style="color:var(--text2)">Hole ${h.n}</span>
+        <span style="font-weight:600">${w||'— not set'}</span>
+      </div>`;
+    });
+    html+='</div>';
+  }
+
+  const el=document.getElementById('rev-scorecard');
+  if(el)el.innerHTML=html;
+
+  // Override submit button to use scramble submit
+  const submitBtn=document.querySelector('#s-review .btn-navy');
+  if(submitBtn)submitBtn.setAttribute('onclick','submitScrambleFromReview()');
+}
+
+function editScrambleScore(holeIdx){
+  const db=getDB();const yr=getYear(db);
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const hole=HOLES[side][holeIdx];
+  const cur=SCR.scores[holeIdx];
+  const val=prompt('Hole '+hole.n+' (Par '+hole.p+') — enter team score:',cur);
+  if(val===null)return;
+  const n=parseInt(val);
+  if(isNaN(n)||n<1||n>20){showToast('Please enter a valid score (1-20)');return;}
+  SCR.scores[holeIdx]=n;
+  renderScrambleReview();
+}
+
+async function submitScrambleFromReview(){
+  const db=getDB();const yr=getYear(db);
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
+  const holes=HOLES[side];
+  const total=SCR.scores.reduce((s,v)=>s+v,0);
+  const par=holes.reduce((s,h)=>s+h.p,0);
+
+  // Build a round object — store team score as p0 on each hole
+  // p0=p1=p2=p3=team score so skins calc can compare across groups
+  const scores=SCR.scores.map(s=>({p0:s,p1:s,p2:s,p3:s}));
+  const money={};
+  ST.players.forEach(p=>money[p.name]=0); // scramble pot settled centrally by admin
+
+  const roundId=wk+'_'+side+'_'+ST.teeTime+'_'+ST.players.map(p=>p.name).sort().join('|');
+  const wd={
+    week:wk,side,year:db.activeYear,
+    roundId,isScramble:true,
+    date:new Date().toLocaleDateString(),teeTime:ST.teeTime,
+    players:ST.players.map(p=>({name:p.name,isSub:p.isSub})),
+    scores,ctpWinners:SCR.ctpWinners,
+    money,scrambleTotal:total,scramblePar:par,
+    awins:0,bwins:0,matchWinner:null,presses:[],
+    skinsSettled:false,skins:{},skinPay:0,ctpPay:0,leagueCTP:{}
+  };
+
+  const sameGroup=yr.weeks.find(w=>w.roundId===roundId);
+  if(sameGroup) yr.weeks=yr.weeks.filter(w=>w.roundId!==roundId);
+  yr.weeks.push(wd);
+
+  // Check if all 9 submitted — settle skins/CTP
+  const thisWeek=yr.weeks.filter(w=>w.week===wk&&w.side===side&&w.isScramble);
+  if(thisWeek.length>=9) calcScrambleSkins(db,yr,wk,side);
+
+  saveDB(db);
+  syncToSheet(wd);
+  renderScrambleResults(wd,holes,total,par,thisWeek);
+  renderHome();
+  goTo('s-results');
+}
+
+function calcScrambleSkins(db,yr,wk,side){
+  const holes=HOLES[side];
+  const weekRounds=yr.weeks.filter(w=>w.week===wk&&w.side===side&&w.isScramble);
+  const skinPot=yr.scrambleSkinsPot||130;
+  const skinPerHole=parseFloat((skinPot/holes.length).toFixed(2));
+  const leagueSkins={};
+  const leagueCTP={};
+
+  // Skins — lowest team score on each hole wins; ties carry
+  let carryover=0;
+  holes.forEach(h=>{
+    const holeScores=weekRounds.map(wd=>({teeTime:wd.teeTime,score:wd.scores[holes.indexOf(h)].p0,players:wd.players}));
+    const best=Math.min(...holeScores.map(s=>s.score));
+    const winners=holeScores.filter(s=>s.score===best);
+    if(winners.length===1){
+      const payout=(skinPerHole*(carryover+1)).toFixed(2);
+      leagueSkins[h.n]={teeTime:winners[0].teeTime,players:winners[0].players,payout:parseFloat(payout)};
+      carryover=0;
+    } else {
+      carryover++;
+    }
+  });
+
+  // CTP — highest tee time wins (same rule as normal weeks)
+  holes.filter(h=>h.p===3).forEach(h=>{
+    let bestTee=0,bestName='';
+    weekRounds.forEach(wd=>{
+      const w=wd.ctpWinners[h.n];
+      if(w&&w!=='__HIGHER_TEE__'&&wd.teeTime>bestTee){bestTee=wd.teeTime;bestName=w;}
+    });
+    if(bestName) leagueCTP[h.n]=bestName;
+  });
+
+  // Winning team — lowest total
+  const sorted=[...weekRounds].sort((a,b)=>a.scrambleTotal-b.scrambleTotal);
+  const winningTeam=sorted[0];
+  const scramblePot=yr.scramblePot||120;
+  const perPlayer=(scramblePot/winningTeam.players.length).toFixed(2);
+
+  // Store results on each round
+  weekRounds.forEach(wd=>{
+    wd.leagueSkins=leagueSkins;
+    wd.leagueCTP=leagueCTP;
+    wd.scrambleWinner=winningTeam.teeTime;
+    wd.scrambleWinnerTotal=winningTeam.scrambleTotal;
+    wd.skinsSettled=true;
+    // Pay scramble pot to winning team
+    if(wd.teeTime===winningTeam.teeTime){
+      wd.players.forEach(p=>{wd.money[p.name]=(wd.money[p.name]||0)+parseFloat(perPlayer);});
+    }
+  });
+  saveDB(db);
+  showToast('Scramble settled! Winner: Tee '+winningTeam.teeTime+' with '+winningTeam.scrambleTotal);
+}
+
+function renderScrambleResults(wd,holes,total,par,allRounds){
+  const diff=total-par;
+  const diffStr=diff===0?'E':diff>0?'+'+diff:''+diff;
+  const yr=getYear(getDB());
+  const allSubmitted=allRounds.length>=9;
+  const sorted=allSubmitted?[...allRounds].sort((a,b)=>a.scrambleTotal-b.scrambleTotal):[];
+
+  const resEl=document.getElementById('s-results');
+  if(!resEl)return;
+  let html=`<header>
+    <div class="hdr-row">
+      <img class="hdr-logo" id="res-logo" src="${document.getElementById('logo-gl')?.src||''}" alt="">
+      <div class="hdr-text"><h1>Scramble Submitted!</h1><p>🏌️ Week ${wd.week} Scramble</p></div>
+    </div>
+  </header>
+  <div class="section">
+    <div class="card" style="text-align:center;padding:20px">
+      <div style="font-size:14px;color:var(--text2);margin-bottom:6px">Your team score</div>
+      <div style="font-size:56px;font-weight:700;color:var(--navy);line-height:1">${total}</div>
+      <div style="font-size:20px;font-weight:600;color:${diff<=0?'var(--blue-d)':'var(--red)'}">
+        ${diffStr} (Par ${par})
+      </div>
+      <div style="margin-top:10px;font-size:13px;color:var(--text2)">${wd.players.map(p=>p.name).join(' · ')}</div>
+    </div>
+    ${allSubmitted?`
+    <div class="card-title" style="margin-top:12px">Final Leaderboard</div>
+    <div class="card" style="padding:0">
+      ${sorted.map((r,i)=>{
+        const d=r.scrambleTotal-par;
+        const ds=d===0?'E':d>0?'+'+d:''+d;
+        const isWin=i===0;
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);${isWin?'background:var(--gold-l)':''}">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:16px">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</span>
+            <div>
+              <div style="font-size:13px;font-weight:600">${r.players.map(p=>fname(p.name)).join('/')}</div>
+              <div style="font-size:11px;color:var(--text2)">Tee ${r.teeTime}</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:18px;font-weight:700">${r.scrambleTotal}</div>
+            <div style="font-size:12px;color:${d<=0?'var(--blue-d)':'var(--red)'}">${ds}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="padding:10px 12px;font-size:12px;color:var(--text2);text-align:center">
+      🏆 Winning team: $${(yr.scramblePot||120)/4}/player &nbsp;·&nbsp; Skins & CTP from $${yr.scrambleSkinsPot||130} pot
+    </div>`
+    :`<div class="card" style="text-align:center;color:var(--text2);font-size:13px;padding:16px">
+      ⏳ Waiting for all 9 groups to submit — leaderboard will appear when complete.
+    </div>`}
+    <button class="btn btn-navy" style="width:100%;margin-top:12px" onclick="renderHome();goTo('s-home')">← Back to Home</button>
+  </div>`;
+  resEl.innerHTML=html;
 }
 
 // ── SCORING HOLE ─────────────────────────────────────────────
@@ -1888,7 +2246,6 @@ function submitFromReview(){
   if(differentGroupAtSameTee.length){
     showToast('⚠️ Another group already used Tee '+_pendingWd.teeTime+' — flagged for commissioner');
   }
-  _pendingWd._localSavedAt=Date.now();
   yr.weeks.push(_pendingWd);
   saveDB(db);
 
@@ -3221,6 +3578,10 @@ function syncAdminUI(){
   }
   const roEl=document.getElementById('adm-rainouts');
   if(roEl)roEl.value=(yr.rainouts||[]).join(', ');
+  // Scramble settings
+  const swEl=document.getElementById('scramble-week-num');if(swEl)swEl.value=yr.scrambleWeek||14;
+  const spEl=document.getElementById('scramble-pot');if(spEl)spEl.value=yr.scramblePot||120;
+  const sspEl=document.getElementById('scramble-skins-pot');if(sspEl)sspEl.value=yr.scrambleSkinsPot||130;
   const sideOvEl=document.getElementById('adm-side-override');
   if(sideOvEl)sideOvEl.textContent=yr.sideOverride?('Overridden: '+(yr.sideOverride==='front'?'Front 9':'Back 9')):'No override set';
   const sideStatusEl=document.getElementById('side-override-status');
@@ -3343,7 +3704,6 @@ function saveSeasonSettings(){
   const db=getDB();const yr=getYear(db);
   const sd=document.getElementById('adm-start-date');
   const side1=document.getElementById('adm-side1');
-  // Validate date before saving
   if(!sd||!sd.value){
     showToast('⚠️ Please select a start date first');
     if(sd)sd.focus();
@@ -3353,7 +3713,6 @@ function saveSeasonSettings(){
   if(side1)yr.week1Side=side1.value;
   saveDB(db);syncAdminUI();renderHome();
   showToast('Saved: '+sd.value+' / '+(yr.week1Side||'front')+' ✓');
-  // Push to Sheet so all phones pick it up on next refresh
   if(db.sheetUrl){
     fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
       action:'saveConfig',
@@ -3362,6 +3721,35 @@ function saveSeasonSettings(){
         ['week1Side_'+db.activeYear]: yr.week1Side||'front'
       }
     })}).then(()=>showToast('Synced: '+yr.seasonStartDate+' / '+yr.week1Side+' ✓')).catch(()=>{});
+  }
+}
+
+async function saveScrambleSettings(){
+  const db=getDB();const yr=getYear(db);
+  const wkEl=document.getElementById('scramble-week-num');
+  const potEl=document.getElementById('scramble-pot');
+  const skinsPotEl=document.getElementById('scramble-skins-pot');
+  const statusEl=document.getElementById('scramble-status');
+  yr.scrambleWeek=parseInt(wkEl?.value)||14;
+  yr.scramblePot=parseFloat(potEl?.value)||120;
+  yr.scrambleSkinsPot=parseFloat(skinsPotEl?.value)||130;
+  saveDB(db);
+  if(db.sheetUrl){
+    try{
+      await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({
+        action:'saveConfig',
+        data:{
+          ['scrambleWeek_'+db.activeYear]:yr.scrambleWeek,
+          ['scramblePot_'+db.activeYear]:yr.scramblePot,
+          ['scrambleSkinsPot_'+db.activeYear]:yr.scrambleSkinsPot
+        }
+      })});
+      if(statusEl)statusEl.textContent='✓ Scramble settings saved — Week '+yr.scrambleWeek+' · $'+yr.scramblePot+' team pot · $'+yr.scrambleSkinsPot+' skins/CTP';
+    }catch(e){
+      if(statusEl)statusEl.textContent='✓ Saved locally';
+    }
+  } else {
+    if(statusEl)statusEl.textContent='✓ Saved locally';
   }
 }
 function changeYear(){
