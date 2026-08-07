@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.18</title>
+<title>OCBC Golf League v2.22</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -246,7 +246,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.18</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.22</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -258,7 +258,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.18</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.22</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -518,13 +518,25 @@ label:first-child{margin-top:0}
         <option value="">-- Select status --</option>
         <option value="team_looking">👥 My partner &amp; I are looking for a match</option>
         <option value="player_looking">🙋 I'm looking for a partner &amp; match</option>
+        <option value="subbing_in">🔄 I'm subbing in — joining a group</option>
         <option value="not_playing">❌ Not playing this week</option>
       </select>
       <!-- Partner select (for team_looking) -->
       <div id="partner-row" style="display:none">
         <label style="font-size:12px;color:var(--text2)">My Partner</label>
-        <select id="status-partner" style="width:100%;margin-bottom:10px">
+        <select id="status-partner" style="width:100%;margin-bottom:6px">
           <option value="">-- Select partner --</option>
+        </select>
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:10px">
+          <input type="checkbox" id="status-partner-is-sub">
+          <span>My partner is a sub (not a regular member)</span>
+        </label>
+      </div>
+      <!-- Group select (for subbing_in) -->
+      <div id="sub-group-row" style="display:none">
+        <label style="font-size:12px;color:var(--text2)">Joining which group?</label>
+        <select id="status-sub-group" style="width:100%;margin-bottom:10px">
+          <option value="">-- Select group --</option>
         </select>
       </div>
       <div style="display:flex;gap:8px">
@@ -1588,11 +1600,22 @@ function scrAdj(d){
 
 function scrSaveCtp(holeNum){
   const el=document.getElementById('scr-ctp');
-  if(el) SCR.ctpWinners[holeNum]=el.value==='__none__'?'':el.value;
+  if(!el)return;
+  // Keep '__none__' as explicit sentinel — empty string means never touched
+  SCR.ctpWinners[holeNum]=el.value; // '' = not set, '__none__' = no one, name = winner
 }
 
 function scrNext(){
-  scrSaveCtp(HOLES[getYear(getDB()).seasonStartDate?calcCurrentSide(getYear(getDB())):getYear(getDB()).currentSide][SCR.holeIdx].n);
+  const db=getDB();const yr=getYear(db);
+  const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
+  const hole=HOLES[side][SCR.holeIdx];
+  if(hole.p===3){
+    scrSaveCtp(hole.n);
+    if(!SCR.ctpWinners[hole.n]||SCR.ctpWinners[hole.n]===''){
+      showToast('⚠️ Please select a CTP winner (or "No one") before advancing');
+      return;
+    }
+  }
   SCR.holeIdx++;
   renderScrambleHole();
   scrSaveLive();
@@ -1629,11 +1652,16 @@ function scrFinish(){
   const db=getDB();const yr=getYear(db);
   const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
   const holes=HOLES[side];
-  // Validate CTP on par 3s
+  // Save CTP for last hole if par 3
+  const lastHole=holes[SCR.holeIdx];
+  if(lastHole&&lastHole.p===3) scrSaveCtp(lastHole.n);
+  // Only block if never touched (undefined or empty string)
+  // '__none__' = player explicitly chose "no one" — that's valid, allow through
   const par3s=holes.filter(h=>h.p===3);
   for(const h of par3s){
-    if(!SCR.ctpWinners[h.n]){
-      doConfirm('CTP Required','Please select a CTP winner (or "No one in our group") for Hole '+h.n+' before submitting.',()=>{
+    const v=SCR.ctpWinners[h.n];
+    if(v===undefined||v===''){
+      doConfirm('CTP Required — Hole '+h.n,'Please select a CTP winner (or "No one in our group") for Hole '+h.n+'.',()=>{
         SCR.holeIdx=holes.findIndex(x=>x.n===h.n);
         renderScrambleHole();
       });
@@ -2735,6 +2763,7 @@ function buildStats(yr_data){
 
   yr_data.weeks.forEach(wd=>{
     if(!wd.players||!wd.scores)return;
+    if(wd.isScramble)return; // scramble scores are team scores, not individual
     wd.players.forEach((pl,i)=>{
       if(!pl||!pl.name)return; // skip undefined/null players
       const n=nameMap[pl.name]||pl.name; // apply promotion map
@@ -2866,6 +2895,7 @@ function renderHandicap(){
   const playerRoundsHcp={};
   (yr.weeks||[]).forEach(wd=>{
     if(!wd.players||!wd.scores)return;
+    if(wd.isScramble)return; // scramble scores are team scores, not individual
     const side=wd.side||'back';
     const courseData=cs[side]||cs.back;
     wd.players.forEach((pl,i)=>{
@@ -3006,6 +3036,7 @@ function renderLb(){
   // Build per-player round detail for expandable rows
   const playerRounds={};
   (yr.weeks||[]).forEach(wd=>{
+    if(wd.isScramble)return; // don't show scramble in individual round history
     (wd.players||[]).forEach((pl,pi)=>{
       if(!pl||!pl.name)return;
       const n=pl.name;
@@ -4953,44 +4984,91 @@ function showStatusPicker(){
 }
 
 function onStatusNameChange(){
-  // Pre-select their current status if any
   const db=getDB();const yr=getYear(db);
-  const wk=getLineupWeek(yr); // next week lineup
   const name=document.getElementById('status-my-name').value;
   if(!name)return;
   const lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
-  // Find current status
   const notPlaying=(lineup.notPlaying||[]).includes(name);
   const teamLooking=(lineup.teamsLooking||[]).find(t=>t.p1===name||t.p2===name);
   const playerLooking=(lineup.playersLooking||[]).includes(name);
+  // Check if they are currently in a slot (subbing in)
+  let subbingInSlot=null;
+  for(let s=1;s<=15;s++){
+    if(lineup[s]&&(lineup[s].members||[]).includes(name)&&lineup[s].captain!==name){
+      subbingInSlot=s;break;
+    }
+  }
   const typeEl=document.getElementById('status-type');
+  const partnerIsSubEl=document.getElementById('status-partner-is-sub');
   if(notPlaying) typeEl.value='not_playing';
-  else if(teamLooking){typeEl.value='team_looking';onStatusTypeChange();
+  else if(teamLooking){
+    typeEl.value='team_looking';
     const partnerEl=document.getElementById('status-partner');
     if(partnerEl)partnerEl.value=teamLooking.p1===name?teamLooking.p2:teamLooking.p1;
+    const partnerName=teamLooking.p1===name?teamLooking.p2:teamLooking.p1;
+    const partnerIsSub=!(db.players||[]).includes(partnerName);
+    if(partnerIsSubEl)partnerIsSubEl.checked=partnerIsSub;
   }
   else if(playerLooking) typeEl.value='player_looking';
+  else if(subbingInSlot) typeEl.value='subbing_in';
   else typeEl.value='';
   onStatusTypeChange();
+  // Pre-select group if subbing_in
+  if(subbingInSlot){
+    const groupEl=document.getElementById('status-sub-group');
+    if(groupEl)setTimeout(()=>{groupEl.value=subbingInSlot;},50);
+  }
 }
 
 function onStatusTypeChange(){
   const type=document.getElementById('status-type').value;
   const partnerRow=document.getElementById('partner-row');
+  const subGroupRow=document.getElementById('sub-group-row');
   if(partnerRow) partnerRow.style.display=type==='team_looking'?'block':'none';
+  if(subGroupRow) subGroupRow.style.display=type==='subbing_in'?'block':'none';
+  // Populate group dropdown for subbing_in
+  if(type==='subbing_in'){
+    const db=getDB();const yr=getYear(db);
+    const lineup=yr.weekLineup&&yr.weekLineup['upcoming']?yr.weekLineup['upcoming']:{};
+    const groupEl=document.getElementById('status-sub-group');
+    if(groupEl){
+      let opts='<option value="">-- Select group --</option>';
+      for(let s=1;s<=9;s++){
+        const grp=lineup[s]||{};
+        const cap=grp.captain;
+        if(cap){
+          const members=(grp.members||[]).filter(m=>m!==cap);
+          const memberStr=members.length?` + ${members.map(fname).join(', ')}`:'';
+          opts+=`<option value="${s}">Tee ${s} — ${cap}${memberStr}</option>`;
+        }
+      }
+      // Also offer open groups
+      for(let s=10;s<=15;s++){
+        const grp=lineup[s]||{};
+        const members=grp.members||[];
+        if(members.length||s===10){
+          opts+=`<option value="${s}">Open Group (Tee ${s})${members.length?' — '+members.map(fname).join(', '):''}</option>`;
+        }
+      }
+      groupEl.innerHTML=opts;
+    }
+  }
 }
 
 async function saveMyStatus(){
   const db=getDB();const yr=getYear(db);
-  const wk=getLineupWeek(yr); // next week lineup
+  const wk=getLineupWeek(yr);
   const name=document.getElementById('status-my-name').value;
   const type=document.getElementById('status-type').value;
   const partner=document.getElementById('status-partner')?.value;
+  const subGroup=parseInt(document.getElementById('status-sub-group')?.value)||null;
+  const partnerIsSub=document.getElementById('status-partner-is-sub')?.checked||false;
   const msgEl=document.getElementById('status-save-msg');
   if(!name){showToast('Please select your name');return;}
   if(!type){showToast('Please select a status');return;}
   if(type==='team_looking'&&!partner){showToast('Please select your partner');return;}
   if(type==='team_looking'&&partner===name){showToast('Partner cannot be yourself');return;}
+  if(type==='subbing_in'&&!subGroup){showToast('Please select which group you are joining');return;}
 
   if(!yr.weekLineup)yr.weekLineup={};
   if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
@@ -5001,15 +5079,18 @@ async function saveMyStatus(){
   lineup.playersLooking=(lineup.playersLooking||[]).filter(n=>n!==name);
   lineup.teamsLooking=(lineup.teamsLooking||[]).filter(t=>t.p1!==name&&t.p2!==name);
   lineup.available=(lineup.available||[]).filter(n=>n!==name);
+  // Remove from any existing slot
+  for(let s=1;s<=15;s++){
+    if(lineup[s]&&lineup[s].members){
+      lineup[s].members=lineup[s].members.filter(m=>m!==name);
+    }
+  }
 
-  // Apply new status
   if(type==='not_playing'){
     lineup.notPlaying=[...(lineup.notPlaying||[]),name];
-    // Also remove from any tee time group
     [1,2,3,4,5,6,7,8,9].forEach(s=>{
       if(lineup[s]){
         lineup[s].members=(lineup[s].members||[]).filter(m=>m!==name);
-        // If captain is not playing, clear and compress
         if(lineup[s].captain===name){
           lineup[s].prevCaptain=lineup[s].captain;
           lineup[s].vacateReason='Out this week';
@@ -5023,11 +5104,24 @@ async function saveMyStatus(){
   } else if(type==='player_looking'){
     lineup.playersLooking=[...(lineup.playersLooking||[]),name];
   } else if(type==='team_looking'){
-    // Remove partner from their status too
+    // Clear partner from their lists too
     lineup.notPlaying=(lineup.notPlaying||[]).filter(n=>n!==partner);
     lineup.playersLooking=(lineup.playersLooking||[]).filter(n=>n!==partner);
     lineup.teamsLooking=(lineup.teamsLooking||[]).filter(t=>t.p1!==partner&&t.p2!==partner);
-    lineup.teamsLooking=[...(lineup.teamsLooking||[]),{p1:name,p2:partner}];
+    lineup.teamsLooking=[...(lineup.teamsLooking||[]),{
+      p1:name,p2:partner,
+      p2IsSub:partnerIsSub
+    }];
+    // Track partner as sub if checked
+    if(partnerIsSub&&!db.players.includes(partner)&&!(db.subs||[]).includes(partner)){
+      db.subs=[...(db.subs||[]),partner];
+    }
+  } else if(type==='subbing_in'){
+    // Add to the selected group
+    if(!lineup[subGroup])lineup[subGroup]={members:[],captain:''};
+    if(!(lineup[subGroup].members||[]).includes(name)){
+      lineup[subGroup].members=[...(lineup[subGroup].members||[]),name];
+    }
   }
 
   saveDB(db);
@@ -5464,7 +5558,10 @@ function _renderThisWeekInner(db,yr,wk,lineup,el){
     html += '<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;padding:8px 0 4px">👥 Teams Looking for a Match</div>';
     html += '<div class="card">';
     for(var ti=0;ti<teams.length;ti++){
-      html += '<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-weight:600">'+teams[ti].p1+' &amp; '+teams[ti].p2+'</div><div style="font-size:11px;color:var(--text2)">Looking for opponents</div></div>';
+      var t=teams[ti];
+      var p1Sub=t.p1IsSub?'<span style="font-size:9px;background:var(--bg);border:1px solid var(--border);padding:1px 4px;border-radius:3px;color:var(--text2);margin-left:3px">SUB</span>':'';
+      var p2Sub=t.p2IsSub?'<span style="font-size:9px;background:var(--bg);border:1px solid var(--border);padding:1px 4px;border-radius:3px;color:var(--text2);margin-left:3px">SUB</span>':'';
+      html += '<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-weight:600">'+t.p1+p1Sub+' &amp; '+t.p2+p2Sub+'</div><div style="font-size:11px;color:var(--text2)">Looking for opponents</div></div>';
     }
     html += '</div>';
   }
