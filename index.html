@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.22</title>
+<title>OCBC Golf League v2.23</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -246,7 +246,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.22</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.23</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -258,7 +258,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.22</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.23</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -527,8 +527,9 @@ label:first-child{margin-top:0}
         <select id="status-partner" style="width:100%;margin-bottom:6px">
           <option value="">-- Select partner --</option>
         </select>
+        <input type="text" id="status-partner-text" placeholder="Enter sub's name" style="display:none;width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;font-size:14px;margin-bottom:6px">
         <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:10px">
-          <input type="checkbox" id="status-partner-is-sub">
+          <input type="checkbox" id="status-partner-is-sub" onchange="togglePartnerSubInput()">
           <span>My partner is a sub (not a regular member)</span>
         </label>
       </div>
@@ -5020,6 +5021,23 @@ function onStatusNameChange(){
   }
 }
 
+function togglePartnerSubInput(){
+  const isSub=document.getElementById('status-partner-is-sub')?.checked;
+  const sel=document.getElementById('status-partner');
+  const txt=document.getElementById('status-partner-text');
+  if(sel) sel.style.display=isSub?'none':'block';
+  if(txt) txt.style.display=isSub?'block':'none';
+  if(isSub&&txt) txt.focus();
+}
+
+function getPartnerValue(){
+  const isSub=document.getElementById('status-partner-is-sub')?.checked;
+  if(isSub){
+    return (document.getElementById('status-partner-text')?.value||'').trim();
+  }
+  return document.getElementById('status-partner')?.value||'';
+}
+
 function onStatusTypeChange(){
   const type=document.getElementById('status-type').value;
   const partnerRow=document.getElementById('partner-row');
@@ -5060,7 +5078,7 @@ async function saveMyStatus(){
   const wk=getLineupWeek(yr);
   const name=document.getElementById('status-my-name').value;
   const type=document.getElementById('status-type').value;
-  const partner=document.getElementById('status-partner')?.value;
+  const partner=getPartnerValue();
   const subGroup=parseInt(document.getElementById('status-sub-group')?.value)||null;
   const partnerIsSub=document.getElementById('status-partner-is-sub')?.checked||false;
   const msgEl=document.getElementById('status-save-msg');
