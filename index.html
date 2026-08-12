@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.23</title>
+<title>OCBC Golf League v2.24</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -246,7 +246,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.23</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.24</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -258,7 +258,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.23</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.24</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -5088,9 +5088,17 @@ async function saveMyStatus(){
   if(type==='team_looking'&&partner===name){showToast('Partner cannot be yourself');return;}
   if(type==='subbing_in'&&!subGroup){showToast('Please select which group you are joining');return;}
 
-  if(!yr.weekLineup)yr.weekLineup={};
-  if(!yr.weekLineup['upcoming'])yr.weekLineup['upcoming']={};
-  const lineup=yr.weekLineup['upcoming'];
+  // ALWAYS fetch fresh lineup from Sheet first before modifying
+  // This prevents stale local data from overwriting what others have set
+  if(db.sheetUrl){
+    if(msgEl)msgEl.textContent='Fetching latest lineup...';
+    await fetchLineupFromSheet(wk);
+  }
+
+  const freshDb=getDB();const freshYr=getYear(freshDb);
+  if(!freshYr.weekLineup)freshYr.weekLineup={};
+  if(!freshYr.weekLineup['upcoming'])freshYr.weekLineup['upcoming']={};
+  const lineup=freshYr.weekLineup['upcoming'];
 
   // Remove player from all status lists first
   lineup.notPlaying=(lineup.notPlaying||[]).filter(n=>n!==name);
@@ -5131,8 +5139,8 @@ async function saveMyStatus(){
       p2IsSub:partnerIsSub
     }];
     // Track partner as sub if checked
-    if(partnerIsSub&&!db.players.includes(partner)&&!(db.subs||[]).includes(partner)){
-      db.subs=[...(db.subs||[]),partner];
+    if(partnerIsSub&&!freshDb.players.includes(partner)&&!(freshDb.subs||[]).includes(partner)){
+      freshDb.subs=[...(freshDb.subs||[]),partner];
     }
   } else if(type==='subbing_in'){
     // Add to the selected group
@@ -5142,7 +5150,7 @@ async function saveMyStatus(){
     }
   }
 
-  saveDB(db);
+  saveDB(freshDb);
   await syncLineup(wk);
   renderThisWeek();
   if(msgEl)msgEl.textContent='✓ Status saved!';
