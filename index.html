@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.24</title>
+<title>OCBC Golf League v2.25</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -246,7 +246,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.24</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.25</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -258,7 +258,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.24</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.25</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -273,7 +273,7 @@ label:first-child{margin-top:0}
       <strong id="h-side" style="font-size:14px;color:var(--navy)">Front 9</strong>
     </div>
     <button class="btn btn-green" onclick="goToScoring()" style="padding:11px;font-size:15px">▶ Enter Foursome Scores</button>
-    <button class:10px;font-size:14px" onclick="showTab('leaderboard')">📊 Leaderboard &amp; Averages</button>
+    <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('leaderboard')">📊 Leaderboard &amp; Averages</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('history')">📅 Season History</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="showTab('thisweek')">📅 This Week's Lineup</button>
     <button class="btn btn-secondary" style="margin-top:7px;padding:10px;font-size:14px" onclick="toggleRoster()">👥 Member Roster</button>
@@ -620,15 +620,6 @@ label:first-child{margin-top:0}
   <div id="tab-skins" class="tab-content">
     <div style="padding:9px 15px 0;display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:13px;font-weight:600">This Week's Skin Results:</span>
-      <span id="skins-year-pill" class="year-pill"></span>
-    </div>
-    <div class="section" id="skins-list"></div>
-  </div>
-
-  <!-- SKINS TAB -->
-  <div id="tab-skins" class="tab-content">
-    <div style="padding:9px 15px 0;display:flex;align-items:center;justify-content:space-between">
-      <span style="font-size:13px;font-weight:600">Skins Leaders:</span>
       <span id="skins-year-pill" class="year-pill"></span>
     </div>
     <div class="section" id="skins-list"></div>
@@ -1104,6 +1095,66 @@ function isScrambleWeek(yr){
 function isRainoutWeek(yr){
   const wk=yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek;
   return (yr.rainouts||[]).includes(wk);
+}
+
+// ── MATCH MATH ───────────────────────────────────────────────
+// Single source of truth for hole winners, match, presses and money.
+// Always derived from the scores, so score edits and going back a hole
+// can never leave stale or double-counted results.
+function getScoringSide(){
+  const yr=getYear(getDB());
+  return ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
+}
+function holeWinnerAt(sc,numP){
+  if(!sc)return null;
+  const a=[sc.p0,numP>1?sc.p1:99].filter(s=>s!=null&&s<99);
+  const b=[numP>2?sc.p2:99,numP>3?sc.p3:99].filter(s=>s!=null&&s<99);
+  const ba=a.length?Math.min(...a):99,bb=b.length?Math.min(...b):99;
+  if(ba<99&&bb<99)return ba<bb?'A':bb<ba?'B':null;
+  if(ba<99)return 'A';
+  if(bb<99)return 'B';
+  return null;
+}
+function tallyHoles(scores,numP,from,to){
+  const t={a:0,b:0};
+  for(let i=from;i<to;i++){const w=holeWinnerAt(scores[i],numP);if(w==='A')t.a++;else if(w==='B')t.b++;}
+  return t;
+}
+// Zero-sum "per man" bet: a short-handed side covers every opponent (2 vs 1 = lone player pays/collects double).
+function payWager(money,winners,losers,stake){
+  if(!winners.length||!losers.length)return;
+  const pot=stake*Math.max(winners.length,losers.length);
+  winners.forEach(n=>money[n]=(money[n]||0)+pot/winners.length);
+  losers.forEach(n=>money[n]=(money[n]||0)-pot/losers.length);
+}
+function computeMatch(players,scores,presses,side){
+  const holes=HOLES[side];const numP=players.length;
+  const names=players.map(p=>p.name);
+  const teamA=names.slice(0,2),teamB=names.slice(2,4);
+  const hres=holes.map((hole,i)=>({hole,sc:scores[i],w:holeWinnerAt(scores[i],numP)}));
+  const t=tallyHoles(scores,numP,0,holes.length);
+  const mw=numP>=3?(t.a>t.b?'A':t.b>t.a?'B':null):null;
+  const money={};names.forEach(n=>money[n]=0);
+  const pay=(w,stake)=>{if(w==='A')payWager(money,teamA,teamB,stake);else if(w==='B')payWager(money,teamB,teamA,stake);};
+  pay(mw,5);
+  const pr=(presses||[]).map(p=>{
+    const start=holes.findIndex(h=>h.n===Number(p.startHole));
+    // Presses saved by older versions with a hole from the other nine keep their stored result
+    if(start<0)return Object.assign({},p,{closed:true});
+    const pt=tallyHoles(scores,numP,start,holes.length);
+    return Object.assign({},p,{awins:pt.a,bwins:pt.b,closed:true,winner:pt.a>pt.b?'A':pt.b>pt.a?'B':null});
+  });
+  if(numP>=3)pr.forEach(p=>pay(p.winner,10));
+  return{hres,awins:t.a,bwins:t.b,matchWinner:mw,presses:pr,money};
+}
+// In-round tallies for the match bar and press panel: holes completed so far.
+function refreshTallies(){
+  const holes=HOLES[getScoringSide()];const numP=ST.players.length;
+  const t=tallyHoles(ST.scores,numP,0,ST.holeIdx);ST.awins=t.a;ST.bwins=t.b;
+  ST.presses.forEach(p=>{
+    const s=Math.max(0,holes.findIndex(h=>h.n===p.startHole));
+    const pt=tallyHoles(ST.scores,numP,s,ST.holeIdx);p.awins=pt.a;p.bwins=pt.b;
+  });
 }
 
 // ── STATE ────────────────────────────────────────────────────
@@ -1684,7 +1735,7 @@ function renderScrambleReview(){
   const diffColor=diff<0?'var(--blue-d)':diff===0?'var(--text2)':'var(--red)';
 
   const revSub=document.getElementById('rev-sub');
-  if(revSub)revSub.textContent='Scramble · Week '+yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek+' · '+ST.players.map(p=>fname(p.name)).join(' / ')+' · Tee '+ST.teeTime;
+  if(revSub)revSub.textContent='Scramble · Week '+(yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek)+' · '+ST.players.map(p=>fname(p.name)).join(' / ')+' · Tee '+ST.teeTime;
 
   let html='<div style="margin-bottom:10px;padding:8px 10px;background:var(--gold-l);border:1px solid var(--gold);border-radius:var(--rsm);font-size:13px;font-weight:600;color:var(--gold-d)">🏌️ Scramble Week — Team Score Review</div>';
   html+='<table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">';
@@ -1928,6 +1979,7 @@ function renderScoringHole(){
     }
   }
 
+  refreshTallies();
   if(ST.holeIdx>0){
     document.getElementById('match-bar').style.display='block';
     const aa=ST.awins,bb=ST.bwins;
@@ -1964,7 +2016,7 @@ function renderScoringHole(){
   let ctpHtml='';
   if(isPar3){
     const cur=ST.ctpWinners[hole.n]||'';
-    const pp=(36/HOLES[yr.currentSide].filter(h=>h.p===3).length).toFixed(2);
+    const pp='36.00'; // each par 3 pays $36 (see calcLeagueWideSkinsCTP)
     ctpHtml=`<div class="ctp-sec">
       <div class="ctp-lbl">🎯 Closest to the Pin — $${pp} — Tee ${ST.teeTime} has priority</div>
       <select id="ctp${hole.n}">
@@ -2026,24 +2078,15 @@ function adjP5(d){
 
 function adj(i,d){const sc=ST.scores[ST.holeIdx];sc['p'+i]=Math.max(1,sc['p'+i]+d);document.getElementById('sn'+i).textContent=sc['p'+i];saveLiveProgress();saveSTProgress();}
 function callPress(team){
-  const db=getDB();const yr=getYear(db);
-  const hole=HOLES[yr.currentSide][ST.holeIdx];
+  const hole=HOLES[getScoringSide()][ST.holeIdx];
   ST.presses.push({startHole:hole.n,calledBy:team,awins:0,bwins:0,closed:false,winner:null});
-  showToast(`Team ${team} called a press! $10/man`);renderScoringHole();
+  showToast(`Team ${team} called a press! $10/man`);renderScoringHole();saveSTProgress();
 }
 function saveCtp(){
   const db=getDB();const yr=getYear(db);
   const ctpSide=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
   const hole=HOLES[ctpSide][ST.holeIdx];
   if(hole.p===3){const el=document.getElementById('ctp'+hole.n);if(el)ST.ctpWinners[hole.n]=el.value;}
-}
-function resolveHole(){
-  const db=getDB();const yr=getYear(db);
-  const sc=ST.scores[ST.holeIdx];
-  const ba=Math.min(sc.p0,sc.p1),bb=Math.min(sc.p2,sc.p3);
-  let hw=null;if(ba<bb)hw='A';else if(bb<ba)hw='B';
-  if(hw==='A')ST.awins++;else if(hw==='B')ST.bwins++;
-  ST.presses.filter(pr=>!pr.closed).forEach(pr=>{if(hw==='A')pr.awins++;else if(hw==='B')pr.bwins++;});
 }
 function nextHole(){
   // Require CTP selection on par 3 holes before advancing
@@ -2060,7 +2103,7 @@ function nextHole(){
       return;
     }
   }
-  saveCtp();resolveHole();ST.holeIdx++;renderScoringHole();saveLiveProgress();saveSTProgress();
+  saveCtp();ST.holeIdx++;renderScoringHole();saveLiveProgress();saveSTProgress();
 }
 function goBackToSetup(){
   // Go back to setup screen preserving tee time and players
@@ -2085,16 +2128,10 @@ function goBackToSetup(){
 }
 
 function prevHole(){
-  const sc=ST.scores[ST.holeIdx-1];
-  const ba=Math.min(sc.p0,sc.p1),bb=Math.min(sc.p2,sc.p3);
-  if(ba<bb)ST.awins=Math.max(0,ST.awins-1);else if(bb<ba)ST.bwins=Math.max(0,ST.bwins-1);
-  ST.presses.filter(pr=>!pr.closed).forEach(pr=>{if(ba<bb)pr.awins=Math.max(0,pr.awins-1);else if(bb<ba)pr.bwins=Math.max(0,pr.bwins-1);});
-  saveCtp();ST.holeIdx--;renderScoringHole();
+  saveCtp();ST.holeIdx--;renderScoringHole();saveSTProgress();
 }
 function finishRound(){
-  const db=getDB();const yr=getYear(db);
-  const scoringSide=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
-  const hole=HOLES[scoringSide][ST.holeIdx];
+  const hole=HOLES[getScoringSide()][ST.holeIdx];
   if(hole.p===3){
     const ctpEl=document.getElementById('ctp'+hole.n);
     if(ctpEl&&!ctpEl.value){
@@ -2105,7 +2142,7 @@ function finishRound(){
       return;
     }
   }
-  saveCtp();resolveHole();calcResults();
+  saveCtp();calcResults();
 }
 
 // ── CALC ─────────────────────────────────────────────────────
@@ -2118,37 +2155,9 @@ function calcResults(){
   const side=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
   const wk=ST._pastMode?ST._pastWeek:(yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek);
   const holes=HOLES[side];
-  const names=ST.players.map(p=>p.name);
-
-  ST.presses.forEach(pr=>{if(!pr.closed){pr.closed=true;pr.winner=pr.awins>pr.bwins?'A':pr.bwins>pr.awins?'B':null;}});
-
-  // Best ball — only count real players (not 99 placeholder)
-  const numPlayers=ST.players.length;
-  const hres=holes.map((hole,i)=>{
-    const sc=ST.scores[i];
-    const aScores=[sc.p0,numPlayers>1?sc.p1:99].filter(s=>s<99);
-    const bScores=[numPlayers>2?sc.p2:99,numPlayers>3?sc.p3:99].filter(s=>s<99);
-    const ba=aScores.length?Math.min(...aScores):99;
-    const bb=bScores.length?Math.min(...bScores):99;
-    let w=null;
-    if(ba<99&&bb<99){if(ba<bb)w='A';else if(bb<ba)w='B';}
-    else if(ba<99&&bb===99)w='A';
-    return{hole,sc,ba,bb,w};
-  });
-
-  // Money calc
-  const money={};names.forEach(n=>money[n]=0);
-  const hasTeamA=numPlayers>=1;
-  const hasTeamB=numPlayers>=3;
-  const mw=hasTeamA&&hasTeamB?(ST.awins>ST.bwins?'A':ST.bwins>ST.awins?'B':null):null;
-  if(mw==='A'&&numPlayers>=4){money[names[0]]+=5;money[names[1]]+=5;money[names[2]]-=5;money[names[3]]-=5;}
-  else if(mw==='A'&&numPlayers===3){money[names[0]]+=5;money[names[1]]+=5;money[names[2]]-=5;}
-  else if(mw==='B'&&numPlayers>=4){money[names[2]]+=5;money[names[3]]+=5;money[names[0]]-=5;money[names[1]]-=5;}
-  else if(mw==='B'&&numPlayers===3){money[names[2]]+=5;money[names[0]]-=5;money[names[1]]-=5;}
-  ST.presses.forEach(pr=>{
-    if(pr.winner==='A'){money[names[0]]+=10;money[names[1]]+=10;money[names[2]]-=10;money[names[3]]-=10;}
-    else if(pr.winner==='B'){money[names[2]]+=10;money[names[3]]+=10;money[names[0]]-=10;money[names[1]]-=10;}
-  });
+  const m=computeMatch(ST.players,ST.scores,ST.presses,side);
+  ST.awins=m.awins;ST.bwins=m.bwins;
+  const hres=m.hres;
 
   const roundId=wk+'_'+side+'_'+ST.teeTime+'_'+ST.players.map(p=>p.name).sort().join('|');
   _pendingWd={
@@ -2158,8 +2167,11 @@ function calcResults(){
     players:ST.players.map(p=>({name:p.name,isSub:p.isSub})),
     scores:JSON.parse(JSON.stringify(ST.scores)),
     ctpWinners:JSON.parse(JSON.stringify(ST.ctpWinners)),
-    money,awins:ST.awins,bwins:ST.bwins,matchWinner:mw,
-    presses:JSON.parse(JSON.stringify(ST.presses)),
+    money:m.money,awins:m.awins,bwins:m.bwins,matchWinner:m.matchWinner,
+    presses:m.presses,
+    // Player 5 plays for skins & CTP only — keep their scores so settlement counts them
+    p5:ST.p5?{name:ST.p5.name,isSub:ST.p5.isSub}:null,
+    p5scores:ST.p5?[...ST.p5scores]:[],
     skinsSettled:false,skins:{},skinPay:0,ctpPay:0,leagueCTP:{}
   };
   _pendingHres=hres;
@@ -2223,6 +2235,9 @@ function renderReviewScreen(wd,hres,side,holes){
 
   const el=document.getElementById('rev-scorecard');
   if(el)el.innerHTML=html;
+  // Scramble review repoints this button; point it back for regular rounds
+  const submitBtn=document.querySelector('#s-review .btn-navy');
+  if(submitBtn)submitBtn.setAttribute('onclick','submitFromReview()');
 }
 
 function editReviewScore(playerIdx, holeIdx){
@@ -2236,23 +2251,16 @@ function editReviewScore(playerIdx, holeIdx){
   const n=parseInt(newVal);
   if(isNaN(n)||n<1||n>20){showToast('Please enter a valid score (1-20)');return;}
   _pendingWd.scores[holeIdx]['p'+playerIdx]=n;
-  // Push corrected score to live tab immediately
-  saveLiveProgress();
-  // Recalculate hres so hole-win highlights reflect the corrected score
-  const db=getDB();const yr=getYear(db);
+  // Recalculate match, presses and money from the corrected scores
   const side=_pendingWd.side;
-  const holes=HOLES[side];
-  const numP=_pendingWd.players.length;
-  _pendingHres=holes.map((hole,i)=>{
-    const sc=_pendingWd.scores[i];
-    const ba=Math.min(...[sc.p0,numP>1?sc.p1:99].filter(s=>s<99).concat([99]));
-    const bb=Math.min(...[numP>2?sc.p2:99,numP>3?sc.p3:99].filter(s=>s<99).concat([99]));
-    let w=null;
-    if(ba<99&&bb<99){if(ba<bb)w='A';else if(bb<ba)w='B';}
-    else if(ba<99&&bb===99)w='A';
-    return{hole,sc,ba,bb,w};
-  });
-  renderReviewScreen(_pendingWd,_pendingHres,side,holes);
+  const m=computeMatch(_pendingWd.players,_pendingWd.scores,_pendingWd.presses,side);
+  Object.assign(_pendingWd,{awins:m.awins,bwins:m.bwins,matchWinner:m.matchWinner,presses:m.presses,money:m.money});
+  _pendingHres=m.hres;
+  // Keep the in-round copy in sync so "Go Back & Fix Scores" and the Live tab show the correction
+  ST.scores=JSON.parse(JSON.stringify(_pendingWd.scores));
+  saveSTProgress();
+  saveLiveProgress();
+  renderReviewScreen(_pendingWd,_pendingHres,side,HOLES[side]);
 }
 
 function goBackToScoring(){
@@ -2280,23 +2288,15 @@ function submitFromReview(){
 
   const thisWeekRounds=yr.weeks.filter(w=>w.week===wk&&w.side===side);
   const allIn=thisWeekRounds.length>=9;
-  if(allIn)calcLeagueWideSkinsCTP(db,yr,wk,side);
+  // A group that submits after the week was settled must be included: re-settle
+  const alreadySettled=thisWeekRounds.some(w=>w.skinsSettled);
+  if(allIn||alreadySettled)calcLeagueWideSkinsCTP(db,yr,wk,side);
 
   const savedWd=yr.weeks.find(w=>w.roundId===_pendingWd.roundId)||_pendingWd;
-  const holes=HOLES[side];
-  const numPlayers=savedWd.players.length;
-  const hres=holes.map((hole,i)=>{
-    const sc=savedWd.scores[i];
-    const ba=Math.min(...[sc.p0,numPlayers>1?sc.p1:99].filter(s=>s<99));
-    const bb=Math.min(...[numPlayers>2?sc.p2:99,numPlayers>3?sc.p3:99].filter(s=>s<99));
-    let w=null;
-    if(ba<99&&bb<99){if(ba<bb)w='A';else if(bb<ba)w='B';}
-    else if(ba<99&&bb===99)w='A';
-    return{hole,sc,ba,bb,w};
-  });
+  const hres=computeMatch(savedWd.players,savedWd.scores,savedWd.presses,side).hres;
 
   syncToSheet(savedWd);
-  renderResults(savedWd,hres,savedWd.skins||{},savedWd.skinPay||0,savedWd.ctpPay||0,allIn,savedWd.leagueCTP||{});
+  renderResults(savedWd,hres,savedWd.skins||{},savedWd.skinPay||0,savedWd.ctpPay||0,allIn||alreadySettled,savedWd.leagueCTP||{});
   renderHome();renderLb();renderHistory();renderCTP();
   _pendingWd=null;_pendingHres=null;
   goTo('s-results');
@@ -2623,9 +2623,10 @@ function calcLeagueWideSkinsCTP(db,yr,wk,side){
     // Reset separate money buckets
     wd.skinsMoney={};
     wd.ctpMoney={};
-    // Only assign to players IN this round
-    wd.players.forEach(pl=>{
-      const n=pl.name;
+    // Only assign to players IN this round (including a skins-only player 5)
+    const payees=wd.players.map(pl=>pl.name);
+    if(wd.p5&&wd.p5.name)payees.push(wd.p5.name);
+    payees.forEach(n=>{
       const skinWins=Object.values(leagueSkins).filter(w=>w===n).length;
       const ctpWins=Object.values(leagueCTP).filter(w=>w===n).length;
       if(skinWins>0) wd.skinsMoney[n]=skinWins*skinPay;
@@ -2777,6 +2778,12 @@ function buildStats(yr_data){
       const ctpMoney=(wd.ctpMoney&&wd.ctpMoney[n])||0;
       stats[n].money+=(baseMoney+skinMoney+ctpMoney);
     });
+    // Skins-only player 5: no match money or scoring average, but skins/CTP winnings count
+    if(wd.p5&&wd.p5.name){
+      const n=nameMap[wd.p5.name]||wd.p5.name;
+      if(!stats[n])stats[n]={money:0,scores:[],wins:0,skins:0,ctps:0,pressWins:0,isSub:!regularSet.has(n)};
+      stats[n].money+=((wd.skinsMoney&&wd.skinsMoney[n])||0)+((wd.ctpMoney&&wd.ctpMoney[n])||0);
+    }
     const wt=wd.matchWinner;
     if(wt){[wt==='A'?0:2,wt==='A'?1:3].forEach(i=>{const pl2=wd.players[i];const n=pl2&&pl2.name;if(n&&stats[n])stats[n].wins++;});}
     Object.values(wd.skins||{}).forEach(n=>{if(stats[n])stats[n].skins++;});
@@ -3151,6 +3158,8 @@ function goToScoring(){
 }
 // ── TAB / SCREEN NAVIGATION ──────────────────────────────────
 function showTab(t){
+  // The admin tab is only reachable through the password prompt
+  if(t==='admin'&&!isAdminUnlocked()){tryOpenAdmin();return;}
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('s-tabs').classList.add('active');
   document.getElementById('bnav').style.display='flex';
@@ -3866,34 +3875,36 @@ function adminSettleSkinsCTP(){
 }
 
 function changePassword(){
-  const el=document.getElementById('change-pw-block');
-  if(el)el.style.display=el.style.display==='none'?'block':'none';
+  saveNewPassword();
 }
 
 function closeLock(){
-  lockAdmin();
-  showTab('leaderboard');
+  document.getElementById('lock-overlay').classList.remove('show');
+  const err=document.getElementById('lock-err');if(err)err.textContent='';
 }
 
+function isAdminUnlocked(){return localStorage.getItem('adminUnlocked')==='true';}
+
 function tryOpenAdmin(){
-  // If already unlocked just open the tab, otherwise show lock screen
-  const adminUnlocked=localStorage.getItem('adminUnlocked')==='true';
-  if(adminUnlocked){
-    showTab('admin');
-  } else {
-    showTab('admin'); // shows admin tab which has the lock screen
-  }
+  if(isAdminUnlocked()){showTab('admin');return;}
+  document.getElementById('lock-overlay').classList.add('show');
+  setTimeout(()=>{const i=document.getElementById('lock-input');if(i)i.focus();},50);
 }
 
 function submitLock(){
   const pw=document.getElementById('lock-input');if(!pw)return;
   const db=getDB();
-  if(pw.value===db.adminPw||pw.value==='OCBC2025'){
-    localStorage.setItem('adminUnlocked','true');pw.value='';syncAdminUI();showToast('Admin unlocked ✓');
-  }else{showToast('Incorrect password');pw.value='';}
+  if(pw.value===(db.adminPw||DEFAULT_PW)){
+    localStorage.setItem('adminUnlocked','true');pw.value='';
+    closeLock();syncAdminUI();showTab('admin');showToast('Admin unlocked ✓');
+  }else{
+    const err=document.getElementById('lock-err');if(err)err.textContent='Incorrect password';
+    pw.value='';
+  }
 }
 function lockAdmin(){
   localStorage.removeItem('adminUnlocked');syncAdminUI();showToast('Admin locked');
+  showTab('leaderboard');
 }
 function saveNewPassword(){
   const np=document.getElementById('new-pw');const cp=document.getElementById('confirm-pw');
@@ -4116,6 +4127,7 @@ function launchPastEntry(wk,side,teeTime,p1,p2,p3,p4,s1,s2,s3,s4){
   saveDB(db);
   ST.players=players;
   ST.teeTime=teeTime;
+  ST.p5=null;ST.p5scores=[]; // past entry has no skins-only player; clear any left from an earlier round
   ST.holeIdx=0;ST.awins=0;ST.bwins=0;ST.ctpWinners={};ST.presses=[];
   const holes=HOLES[side];
   ST.scores=holes.map(h=>{const sc={};for(let i=0;i<4;i++)sc['p'+i]=h.p;return sc;});
@@ -4131,7 +4143,7 @@ function renderAdminMoneyLb(){
   const el=document.getElementById('admin-money-lb');
   if(!el)return;
   const stats=buildStats(yr);
-  const played=Object.keys(stats).filter(n=>stats[n].scores.length>0);
+  const played=Object.keys(stats).filter(n=>stats[n].scores.length>0||stats[n].money!==0);
   if(!played.length){el.innerHTML='<div style="color:var(--text2);font-size:13px">No rounds yet.</div>';return;}
   const sorted=[...played].sort((a,b)=>stats[b].money-stats[a].money);
   const rows=sorted.map((n,i)=>{
@@ -4423,7 +4435,16 @@ async function saveEditedRound(){
 
   const wkIdx=yr.weeks.findIndex(w=>w.week===wd.week&&w.teeTime===wd.teeTime&&w.side===wd.side);
   if(wkIdx>=0){
+    // Corrections must flow through to the match, presses and money
+    if(!wd.isScramble){
+      const m=computeMatch(wd.players,wd.scores,wd.presses,wd.side);
+      Object.assign(wd,{awins:m.awins,bwins:m.bwins,matchWinner:m.matchWinner,presses:m.presses,money:m.money});
+    }
     yr.weeks[wkIdx]=wd;
+    // ...and to skins/CTP if that week was already settled
+    if(!wd.isScramble&&yr.weeks.some(w=>w.week===wd.week&&w.side===wd.side&&w.skinsSettled)){
+      calcLeagueWideSkinsCTP(db,yr,wd.week,wd.side);
+    }
     saveDB(db);
     if(statusEl)statusEl.textContent='✓ Scores updated locally';
     if(db.sheetUrl){
