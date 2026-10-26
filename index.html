@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OCBC Golf League v2.25</title>
+<title>OCBC Golf League v2.26</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="OCBC GL">
@@ -246,7 +246,7 @@ label:first-child{margin-top:0}
         <img class="hdr-logo" id="logo-gl" src="" alt="OCBC Golf League" style="border-radius:6px;background:transparent">
       </div>
       <div class="hdr-text">
-        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.25</span></h1>
+        <h1>OCBC Golf League <span style="font-size:11px;font-weight:400;opacity:.7">v2.26</span></h1>
         <p id="home-sub" style="display:none">Loading...</p>
       </div>
       <div id="home-week-info" style="text-align:right;flex-shrink:0;font-size:12px;opacity:.9;line-height:1.4">
@@ -258,7 +258,7 @@ label:first-child{margin-top:0}
   <div id="sync-bar" style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)">
     <div class="sync-dot" id="sync-dot"></div>
     <span id="sync-status">Not connected</span>
-    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.25</span>
+    <span style="margin-left:auto;color:var(--border);font-size:10px">v2.26</span>
     <button class="refresh-btn" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer" onclick="refreshFromSheet()">⟳ Refresh</button>
   </div>
   <div class="section">
@@ -290,7 +290,7 @@ label:first-child{margin-top:0}
     <div class="card" style="padding:9px 11px">
       <div class="card-title" style="margin-bottom:6px">Par 3 Holes — CTP</div>
       <div id="h-par3s"></div>
-      <div style="font-size:10px;color:var(--text2);margin-top:5px">$36 per hole · CTP winner = highest tee time number</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:5px">$36 per hole · Each group says whose ball they got inside of — the last marker nobody beats wins</div>
     </div>
   </div>
 </div>
@@ -307,7 +307,7 @@ label:first-child{margin-top:0}
   <div class="section">
     <div class="card">
       <div class="card-title">Your Tee Time Position</div>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:10px">Tap your tee time number — higher number = later tee time = CTP priority</p>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:10px">Which tee time is your group? It's used for the live board — it doesn't decide CTP.</p>
       <div id="tee-time-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px"></div>
       <div id="tee-time-legend" style="font-size:10px;color:var(--text2);text-align:center;margin-bottom:8px"></div>
       <div id="tee-time-warning" style="display:none;background:var(--red-l);border:1px solid var(--red);border-radius:var(--rsm);padding:8px 10px;font-size:13px;color:var(--red);font-weight:600;text-align:center"></div>
@@ -728,6 +728,12 @@ label:first-child{margin-top:0}
       </div>
 
       <div class="card">
+        <div class="card-title">🎯 CTP Disputes</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:8px">When two groups both claim they were inside the same marker, pick the winner here. The week re-settles automatically.</p>
+        <div id="ctp-disputes"></div>
+      </div>
+
+      <div class="card">
         <div class="card-title">⛅ Rainout Week</div>
         <p style="font-size:13px;color:var(--text2);margin-bottom:8px">Mark the current week as a rainout — no scores, week still counts toward the season.</p>
         <button class="btn btn-secondary" onclick="markRainout()">Mark This Week as Rainout</button>
@@ -753,7 +759,10 @@ label:first-child{margin-top:0}
         <p style="font-size:11px;color:var(--text2);margin-top:2px">Split evenly among 4 winning players ($30/player at $120)</p>
         <label style="margin-top:10px">Skins & CTP Pot ($)</label>
         <input type="number" id="scramble-skins-pot" min="0" value="130" placeholder="e.g. 130" onchange="saveScrambleSettings()">
-        <p style="font-size:11px;color:var(--text2);margin-top:2px">Split across 9 holes for skins; CTP paid from this pot</p>
+        <p style="font-size:11px;color:var(--text2);margin-top:2px">Split across 9 holes for skins (ties carry over)</p>
+        <label style="margin-top:10px">CTP per Par 3 on Scramble Week ($)</label>
+        <input type="number" id="scramble-ctp-amt" min="0" value="0" placeholder="0 = no CTP" onchange="saveScrambleSettings()">
+        <p style="font-size:11px;color:var(--text2);margin-top:2px">Set to 0 for no CTP contest on scramble week</p>
         <div id="scramble-status" style="margin-top:8px;font-size:13px;font-weight:600;color:var(--green-d)"></div>
       </div>
 
@@ -1147,6 +1156,92 @@ function computeMatch(players,scores,presses,side){
   if(numP>=3)pr.forEach(p=>pay(p.winner,10));
   return{hres,awins:t.a,bwins:t.b,matchWinner:mw,presses:pr,money};
 }
+// ── CTP: "whose ball were you inside of?" ────────────────────
+// Each group reports its closest player and whose marker that player got
+// inside of (CTP_NO_MARKER = first ball on the green). The winner is the one
+// claim nobody else beat, so tee order and entry order don't matter.
+// Rounds saved before v2.26 have no ctpBeat and use the old rule
+// (latest tee time that claimed it).
+const CTP_NONE=['','__HIGHER_TEE__','__none__'];
+const CTP_NO_MARKER='__NOMARKER__';
+function escAttr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function ctpClaimsFor(rounds,holeNum){
+  return rounds.map(wd=>{
+    const w=wd&&wd.ctpWinners&&wd.ctpWinners[holeNum];
+    if(!w||CTP_NONE.includes(w))return null;
+    const hasBeat=!!(wd.ctpBeat&&holeNum in wd.ctpBeat);
+    const b=hasBeat?wd.ctpBeat[holeNum]:null;
+    return{winner:w,beat:b===CTP_NO_MARKER?null:b,chain:hasBeat,teeTime:Number(wd.teeTime)};
+  }).filter(Boolean);
+}
+// → {winner:'' | name, conflict, contenders, overridden}
+function resolveCtp(rounds,holeNum,overrides){
+  const ov=overrides&&overrides[holeNum];
+  if(ov)return{winner:ov,conflict:false,contenders:[],overridden:true};
+  const claims=ctpClaimsFor(rounds,holeNum);
+  if(!claims.length)return{winner:'',conflict:false,contenders:[]};
+  if(claims.some(c=>c.chain)){
+    const beaten=new Set(claims.map(c=>c.beat).filter(Boolean));
+    const unbeaten=[...new Set(claims.filter(c=>!beaten.has(c.winner)).map(c=>c.winner))];
+    if(unbeaten.length===1)return{winner:unbeaten[0],conflict:false,contenders:[]};
+    return{winner:'',conflict:true,contenders:unbeaten.length?unbeaten:[...new Set(claims.map(c=>c.winner))]};
+  }
+  let best=null;claims.forEach(c=>{if(!best||c.teeTime>best.teeTime)best=c;});
+  return{winner:best.winner,conflict:false,contenders:[]};
+}
+function getCtpOverrides(yr,wk,side){return((yr.ctpOverrides||{})[wk+'_'+side])||{};}
+// Who holds the marker right now: submitted rounds plus groups still on the course.
+let _liveFetchedAt=0;
+function currentCtpMarker(holeNum){
+  const yr=getYear(getDB());
+  const wk=ST._pastMode?ST._pastWeek:(yr.seasonStartDate?calcCurrentWeek(yr):yr.currentWeek);
+  const side=getScoringSide();
+  const myTee=Number(ST.teeTime);
+  const rounds=yr.weeks.filter(w=>w.week===wk&&w.side===side&&Number(w.teeTime)!==myTee);
+  const live=ST._pastMode?[]:(_teeTimeLiveCache||[]).filter(l=>l&&l.week==wk&&l.side===side&&Number(l.teeTime)!==myTee);
+  const r=resolveCtp([...rounds,...live],holeNum,getCtpOverrides(yr,wk,side));
+  return r.winner||'';
+}
+// The two-part CTP question shown on par 3s.
+function ctpWidgetHtml(ids,holeNum,groupNames,curWinner,curBeat,amountLabel){
+  const db=getDB();
+  const marker=currentCtpMarker(holeNum);
+  // Always include the current marker holder (could be a sub from another group) and any saved answer
+  const everyone=[...new Set([...(db.players||[]),...(db.subs||[]),...groupNames,...(marker?[marker]:[]),...(curBeat&&curBeat!==CTP_NO_MARKER?[curBeat]:[])])].sort();
+  const saidNo=curWinner&&CTP_NONE.includes(curWinner);
+  const winnerOpts='<option value="">-- Select --</option>'+
+    `<option value="__HIGHER_TEE__"${saidNo?' selected':''}>No — nobody in our group got inside it</option>`+
+    groupNames.map(n=>`<option value="${escAttr(n)}"${curWinner===n?' selected':''}>Yes — ${escAttr(n)}</option>`).join('');
+  const beatVal=curBeat||marker||CTP_NO_MARKER;
+  const beatOpts=`<option value="${CTP_NO_MARKER}"${beatVal===CTP_NO_MARKER?' selected':''}>No marker yet — first ball on the green</option>`+
+    everyone.map(n=>`<option value="${escAttr(n)}"${beatVal===n?' selected':''}>${escAttr(n)}</option>`).join('');
+  const showBeat=curWinner&&!saidNo;
+  return `<div class="ctp-sec">
+    <div class="ctp-lbl">🎯 Closest to the Pin — Hole ${holeNum}${amountLabel?' — '+amountLabel:''}</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Current marker: <strong id="${ids.marker}">${marker?escAttr(marker):'none yet'}</strong></div>
+    <label style="margin-top:0">Did anyone in your group get inside it?</label>
+    <select id="${ids.winner}" onchange="ctpWidgetChanged('${ids.winner}','${ids.beatRow}');${ids.save}">${winnerOpts}</select>
+    <div id="${ids.beatRow}" style="display:${showBeat?'block':'none'}">
+      <label>Whose ball were they inside of?</label>
+      <select id="${ids.beat}"${curBeat?' data-touched="1"':''} onchange="this.dataset.touched='1';${ids.save}">${beatOpts}</select>
+      <p style="font-size:11px;color:var(--text2);margin-top:4px">Pick the name on the marker you beat. The last claim nobody beats wins.</p>
+    </div>
+  </div>`;
+}
+function ctpWidgetChanged(winnerId,beatRowId){
+  const w=document.getElementById(winnerId),row=document.getElementById(beatRowId);
+  if(w&&row)row.style.display=w.value&&!CTP_NONE.includes(w.value)?'block':'none';
+}
+// Pull fresh live data on a par 3 so the marker default reflects groups ahead.
+async function refreshCtpMarker(holeNum,ids){
+  if(ST._pastMode||Date.now()-_liveFetchedAt<30000)return;
+  await refreshTeeTimeLiveData();
+  const marker=currentCtpMarker(holeNum);
+  const m=document.getElementById(ids.marker);if(m)m.textContent=marker||'none yet';
+  const b=document.getElementById(ids.beat);
+  if(b&&!b.dataset.touched){b.value=marker||CTP_NO_MARKER;}
+}
+
 // In-round tallies for the match bar and press panel: holes completed so far.
 function refreshTallies(){
   const holes=HOLES[getScoringSide()];const numP=ST.players.length;
@@ -1161,7 +1256,7 @@ function refreshTallies(){
 // ── HARDCODED SHEET URL — update this when Apps Script is redeployed ──
 const SHEET_URL='https://script.google.com/macros/s/AKfycbyC3yv3fr4zzVbaAUuaBebWYRVxgwFExTcdfjDF76Mkx9E9qe5VgAoI5uFUHrPZJ2oiEg/exec';
 
-let ST={players:[],p5:null,holeIdx:0,scores:[],ctpWinners:{},p5scores:[],presses:[],awins:0,bwins:0};
+let ST={players:[],p5:null,holeIdx:0,scores:[],ctpWinners:{},ctpBeat:{},p5scores:[],presses:[],awins:0,bwins:0};
 
 function saveSTProgress(){
   try{localStorage.setItem('ocbcgl4_st',JSON.stringify(ST));}catch(e){}
@@ -1340,6 +1435,20 @@ function applyConfig(db, yr, cfg){
     try{
       const sl=typeof cfg.subs==='string'?JSON.parse(cfg.subs):cfg.subs;
       if(Array.isArray(sl)) db.subs=sl;
+    }catch(e){}
+  }
+  // Scramble week settings (saved by the commissioner; previously never loaded on other phones)
+  const num=k=>{const v=cfg[k+'_'+db.activeYear];return v===undefined||v===''?undefined:Number(v);};
+  if(num('scrambleWeek')!==undefined) yr.scrambleWeek=num('scrambleWeek');
+  if(num('scramblePot')!==undefined) yr.scramblePot=num('scramblePot');
+  if(num('scrambleSkinsPot')!==undefined) yr.scrambleSkinsPot=num('scrambleSkinsPot');
+  if(num('scrambleCtpAmount')!==undefined) yr.scrambleCtpAmount=num('scrambleCtpAmount');
+  // Commissioner decisions on disputed CTPs
+  const ctpOvKey='ctpOverrides_'+db.activeYear;
+  if(cfg[ctpOvKey]){
+    try{
+      const co=typeof cfg[ctpOvKey]==='string'?JSON.parse(cfg[ctpOvKey]):cfg[ctpOvKey];
+      if(co&&typeof co==='object') yr.ctpOverrides=co;
     }catch(e){}
   }
   // Rainouts
@@ -1550,12 +1659,12 @@ function _startScoringConfirmed(){
     return sc;
   });
   ST.p5scores=holes.map(h=>h.p); // one score per hole for p5
-  ST.ctpWinners={};ST.presses=[];
+  ST.ctpWinners={};ST.ctpBeat={};ST.presses=[];
 
   // Route to scramble mode if it's scramble week
   if(!ST._pastMode && isScrambleWeek(yr)){
     SCR.scores=holes.map(h=>h.p);
-    SCR.ctpWinners={};
+    SCR.ctpWinners={};SCR.ctpBeat={};
     SCR.holeIdx=0;
     renderScrambleHole();
     goTo('s-scramble');
@@ -1566,7 +1675,7 @@ function _startScoringConfirmed(){
 }
 
 // ── SCRAMBLE SCORING ─────────────────────────────────────────
-const SCR={scores:[],ctpWinners:{},holeIdx:0};
+const SCR={scores:[],ctpWinners:{},ctpBeat:{},holeIdx:0};
 
 function renderScrambleHole(){
   const db=getDB();const yr=getYear(db);
@@ -1594,17 +1703,15 @@ function renderScrambleHole(){
   const diffStr=diff===0?'E':diff>0?'+'+diff:''+diff;
   const diffColor=diff<0?'var(--blue-d)':diff===0?'var(--text2)':'var(--red)';
 
-  // CTP for par 3s
+  // CTP for par 3s — only when the commissioner turned it on for scramble week
   let ctpHtml='';
-  if(hole.p===3){
-    const ctpVal=SCR.ctpWinners[hole.n]||'';
-    const opts='<option value="">Select CTP winner</option>'+
-      '<option value="__none__">No one in our group</option>'+
-      ST.players.map(p=>`<option value="${p.name}"${ctpVal===p.name?' selected':''}>${p.name}</option>`).join('');
-    ctpHtml=`<div style="margin-top:12px;padding:10px 12px;background:var(--gold-l);border-radius:var(--rsm)">
-      <div style="font-size:12px;font-weight:700;color:var(--gold-d);margin-bottom:6px">🎯 CTP — Hole ${hole.n}</div>
-      <select id="scr-ctp" onchange="scrSaveCtp(${hole.n})" style="width:100%">${opts}</select>
-    </div>`;
+  const scrCtpIds={winner:'scr-ctp',beat:'scr-ctp-beat',beatRow:'scr-ctp-beat-row',marker:'scr-ctp-marker',save:'scrSaveCtp('+hole.n+')'};
+  const scrCtpOn=hole.p===3&&scrambleCtpEnabled(getYear(getDB()));
+  if(scrCtpOn){
+    const amt=getYear(getDB()).scrambleCtpAmount;
+    ctpHtml=`<div style="margin-top:12px;padding:2px 12px 10px;background:var(--gold-l);border-radius:var(--rsm)">`+
+      ctpWidgetHtml(scrCtpIds,hole.n,ST.players.map(p=>p.name),SCR.ctpWinners[hole.n]||'',(SCR.ctpBeat||{})[hole.n]||'','$'+amt)+
+      `</div>`;
   }
 
   // Running total
@@ -1639,7 +1746,11 @@ function renderScrambleHole(){
       </div>
       ${SCR.holeIdx===0?`<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="goBackToSetup()">✏️ Edit Setup</button>`:''}
     </div>`;
+  if(scrCtpOn)refreshCtpMarker(hole.n,scrCtpIds);
 }
+
+// Scramble week CTP is optional: on when the commissioner sets an amount above $0.
+function scrambleCtpEnabled(yr){return (parseFloat(yr.scrambleCtpAmount)||0)>0;}
 
 function scrAdj(d){
   const db=getDB();const yr=getYear(db);
@@ -1653,15 +1764,19 @@ function scrAdj(d){
 function scrSaveCtp(holeNum){
   const el=document.getElementById('scr-ctp');
   if(!el)return;
-  // Keep '__none__' as explicit sentinel — empty string means never touched
-  SCR.ctpWinners[holeNum]=el.value; // '' = not set, '__none__' = no one, name = winner
+  // '' = not answered yet, '__HIGHER_TEE__' = nobody in our group, name = claim
+  SCR.ctpWinners[holeNum]=el.value;
+  SCR.ctpBeat=SCR.ctpBeat||{};
+  const beat=document.getElementById('scr-ctp-beat');
+  if(el.value&&!CTP_NONE.includes(el.value)&&beat)SCR.ctpBeat[holeNum]=beat.value;
+  else delete SCR.ctpBeat[holeNum];
 }
 
 function scrNext(){
   const db=getDB();const yr=getYear(db);
   const side=yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide;
   const hole=HOLES[side][SCR.holeIdx];
-  if(hole.p===3){
+  if(hole.p===3&&scrambleCtpEnabled(yr)){
     scrSaveCtp(hole.n);
     if(!SCR.ctpWinners[hole.n]||SCR.ctpWinners[hole.n]===''){
       showToast('⚠️ Please select a CTP winner (or "No one") before advancing');
@@ -1692,7 +1807,7 @@ async function scrSaveLive(){
         players:ST.players,
         holeIdx:SCR.holeIdx,
         scores:SCR.scores.map((s,i)=>({p0:s,p1:s,p2:s,p3:s})), // all same for scramble
-        ctpWinners:SCR.ctpWinners,
+        ctpWinners:SCR.ctpWinners,ctpBeat:SCR.ctpBeat,
         isScramble:true,
         timestamp:Date.now()
       }
@@ -1707,9 +1822,8 @@ function scrFinish(){
   // Save CTP for last hole if par 3
   const lastHole=holes[SCR.holeIdx];
   if(lastHole&&lastHole.p===3) scrSaveCtp(lastHole.n);
-  // Only block if never touched (undefined or empty string)
-  // '__none__' = player explicitly chose "no one" — that's valid, allow through
-  const par3s=holes.filter(h=>h.p===3);
+  // Only block if never answered (undefined or empty string); "nobody in our group" is a valid answer
+  const par3s=scrambleCtpEnabled(yr)?holes.filter(h=>h.p===3):[];
   for(const h of par3s){
     const v=SCR.ctpWinners[h.n];
     if(v===undefined||v===''){
@@ -1761,16 +1875,18 @@ function renderScrambleReview(){
   html+=`<td style="text-align:center;padding:3px 2px;font-weight:700">${total}<br><span style="font-size:9px;color:${diffColor}">${diffStr}</span></td>`;
   html+='</tr></table>';
 
-  // CTP winners
-  const par3s=holes.filter(h=>h.p===3);
+  // CTP claims
+  const par3s=scrambleCtpEnabled(yr)?holes.filter(h=>h.p===3):[];
   if(par3s.length){
     html+='<div style="margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:var(--rsm)">';
-    html+='<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">🎯 CTP Winners</div>';
+    html+='<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">🎯 CTP Claims</div>';
     par3s.forEach(h=>{
       const w=SCR.ctpWinners[h.n];
+      const b=(SCR.ctpBeat||{})[h.n];
+      const txt=!w?'— not set':CTP_NONE.includes(w)?'Nobody in our group':w+' (inside '+(b&&b!==CTP_NO_MARKER?b:'no marker')+')';
       html+=`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
         <span style="color:var(--text2)">Hole ${h.n}</span>
-        <span style="font-weight:600">${w||'— not set'}</span>
+        <span style="font-weight:600">${txt}</span>
       </div>`;
     });
     html+='</div>';
@@ -1817,7 +1933,7 @@ async function submitScrambleFromReview(){
     roundId,isScramble:true,
     date:new Date().toLocaleDateString(),teeTime:ST.teeTime,
     players:ST.players.map(p=>({name:p.name,isSub:p.isSub})),
-    scores,ctpWinners:SCR.ctpWinners,
+    scores,ctpWinners:SCR.ctpWinners,ctpBeat:JSON.parse(JSON.stringify(SCR.ctpBeat||{})),
     money,scrambleTotal:total,scramblePar:par,
     awins:0,bwins:0,matchWinner:null,presses:[],
     skinsSettled:false,skins:{},skinPay:0,ctpPay:0,leagueCTP:{}
@@ -1861,36 +1977,41 @@ function calcScrambleSkins(db,yr,wk,side){
     }
   });
 
-  // CTP — highest tee time wins (same rule as normal weeks)
-  holes.filter(h=>h.p===3).forEach(h=>{
-    let bestTee=0,bestName='';
-    weekRounds.forEach(wd=>{
-      const w=wd.ctpWinners[h.n];
-      if(w&&w!=='__HIGHER_TEE__'&&wd.teeTime>bestTee){bestTee=wd.teeTime;bestName=w;}
+  // CTP — optional on scramble week; same "inside of" chain as regular weeks
+  const ctpAmt=parseFloat(yr.scrambleCtpAmount)||0;
+  if(ctpAmt>0){
+    const ov=getCtpOverrides(yr,wk,side);
+    holes.filter(h=>h.p===3).forEach(h=>{
+      const r=resolveCtp(weekRounds,h.n,ov);
+      if(r.winner) leagueCTP[h.n]=r.winner;
     });
-    if(bestName) leagueCTP[h.n]=bestName;
-  });
+  }
 
-  // Winning team — lowest total
-  const sorted=[...weekRounds].sort((a,b)=>a.scrambleTotal-b.scrambleTotal);
-  const winningTeam=sorted[0];
+  // Winning team(s) — lowest total; a tie splits the pot
+  const best=Math.min(...weekRounds.map(w=>w.scrambleTotal));
+  const winners=weekRounds.filter(w=>w.scrambleTotal===best);
   const scramblePot=yr.scramblePot||120;
-  const perPlayer=(scramblePot/winningTeam.players.length).toFixed(2);
+  const perTeam=scramblePot/winners.length;
 
-  // Store results on each round
+  // Store results on each round. Winnings go in separate buckets that are
+  // rebuilt every time, so settling twice never pays twice.
   weekRounds.forEach(wd=>{
     wd.leagueSkins=leagueSkins;
     wd.leagueCTP=leagueCTP;
-    wd.scrambleWinner=winningTeam.teeTime;
-    wd.scrambleWinnerTotal=winningTeam.scrambleTotal;
+    wd.scrambleWinner=winners[0].teeTime;
+    wd.scrambleWinnerTotal=best;
     wd.skinsSettled=true;
-    // Pay scramble pot to winning team
-    if(wd.teeTime===winningTeam.teeTime){
-      wd.players.forEach(p=>{wd.money[p.name]=(wd.money[p.name]||0)+parseFloat(perPlayer);});
-    }
+    wd.scramblePotMoney={};wd.skinsMoney={};wd.ctpMoney={};
+    const names=wd.players.map(p=>p.name);
+    if(winners.includes(wd)) names.forEach(n=>{wd.scramblePotMoney[n]=perTeam/names.length;});
+    Object.values(leagueSkins).forEach(s=>{
+      if(Number(s.teeTime)===Number(wd.teeTime)) names.forEach(n=>{wd.skinsMoney[n]=(wd.skinsMoney[n]||0)+s.payout/names.length;});
+    });
+    Object.values(leagueCTP).forEach(n=>{if(names.includes(n))wd.ctpMoney[n]=(wd.ctpMoney[n]||0)+ctpAmt;});
   });
   saveDB(db);
-  showToast('Scramble settled! Winner: Tee '+winningTeam.teeTime+' with '+winningTeam.scrambleTotal);
+  pushSettlementToSheet(db,yr,wk);
+  showToast('Scramble settled! Winner: Tee '+winners.map(w=>w.teeTime).join(' & ')+' with '+best);
 }
 
 function renderScrambleResults(wd,holes,total,par,allRounds){
@@ -2014,19 +2135,11 @@ function renderScoringHole(){
   for(let i=ST.players.length;i<4;i++) sc['p'+i]=99; // 99 = not playing, excluded from best ball/skins
 
   let ctpHtml='';
+  const ctpIds={winner:'ctp'+hole.n,beat:'ctp-beat'+hole.n,beatRow:'ctp-beat-row'+hole.n,marker:'ctp-marker'+hole.n,save:'saveCtp()'};
   if(isPar3){
-    const cur=ST.ctpWinners[hole.n]||'';
-    const pp='36.00'; // each par 3 pays $36 (see calcLeagueWideSkinsCTP)
-    ctpHtml=`<div class="ctp-sec">
-      <div class="ctp-lbl">🎯 Closest to the Pin — $${pp} — Tee ${ST.teeTime} has priority</div>
-      <select id="ctp${hole.n}">
-        <option value="">-- Select CTP winner --</option>
-        ${[...ST.players,...(ST.p5?[ST.p5]:[])]
-          .map(pl=>`<option value="${pl.name}"${pl.name===cur?' selected':''}>${pl.name}${pl.skinsOnly?' (skins)':''}</option>`).join('')}
-        <option value="__HIGHER_TEE__"${cur==='__HIGHER_TEE__'?' selected':''}>No one in our group</option>
-      </select>
-      <p style="font-size:11px;color:var(--text2);margin-top:4px">If a later tee time beats your best, select "No one in our group"</p>
-    </div>`;
+    ST.ctpBeat=ST.ctpBeat||{};
+    const groupNames=[...ST.players,...(ST.p5?[ST.p5]:[])].map(pl=>pl.name);
+    ctpHtml=ctpWidgetHtml(ctpIds,hole.n,groupNames,ST.ctpWinners[hole.n]||'',ST.ctpBeat[hole.n]||'','$36'); // each par 3 pays $36 (see calcLeagueWideSkinsCTP)
   }
 
   const activePresses=ST.presses.filter(pr=>!pr.closed);
@@ -2065,6 +2178,7 @@ function renderScoringHole(){
       ${ST.holeIdx<8?`<button class="btn btn-green" onclick="nextHole()">Next Hole →</button>`:`<button class="btn btn-gold" onclick="finishRound()">✓ Finish Round</button>`}
     </div>
     <p style="text-align:center;font-size:11px;color:var(--text2);margin-top:7px">Tap − / + to adjust scores</p>`;
+  if(isPar3)refreshCtpMarker(hole.n,ctpIds);
 }
 
 function adjP5(d){
@@ -2086,7 +2200,14 @@ function saveCtp(){
   const db=getDB();const yr=getYear(db);
   const ctpSide=ST._pastMode?ST._pastSide:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
   const hole=HOLES[ctpSide][ST.holeIdx];
-  if(hole.p===3){const el=document.getElementById('ctp'+hole.n);if(el)ST.ctpWinners[hole.n]=el.value;}
+  if(hole.p!==3)return;
+  const el=document.getElementById('ctp'+hole.n);if(!el)return;
+  ST.ctpWinners[hole.n]=el.value;
+  ST.ctpBeat=ST.ctpBeat||{};
+  const beat=document.getElementById('ctp-beat'+hole.n);
+  if(el.value&&!CTP_NONE.includes(el.value)&&beat)ST.ctpBeat[hole.n]=beat.value;
+  else delete ST.ctpBeat[hole.n];
+  saveSTProgress();
 }
 function nextHole(){
   // Require CTP selection on par 3 holes before advancing
@@ -2167,6 +2288,7 @@ function calcResults(){
     players:ST.players.map(p=>({name:p.name,isSub:p.isSub})),
     scores:JSON.parse(JSON.stringify(ST.scores)),
     ctpWinners:JSON.parse(JSON.stringify(ST.ctpWinners)),
+    ctpBeat:JSON.parse(JSON.stringify(ST.ctpBeat||{})),
     money:m.money,awins:m.awins,bwins:m.bwins,matchWinner:m.matchWinner,
     presses:m.presses,
     // Player 5 plays for skins & CTP only — keep their scores so settlement counts them
@@ -2318,6 +2440,9 @@ async function saveLiveProgress(){
     players:ST.players.map(p=>({name:p.name,isSub:p.isSub})),
     scores:JSON.parse(JSON.stringify(ST.scores)),
     awins:ST.awins,bwins:ST.bwins,
+    // CTP claims so later groups see the current marker holder
+    ctpWinners:JSON.parse(JSON.stringify(ST.ctpWinners||{})),
+    ctpBeat:JSON.parse(JSON.stringify(ST.ctpBeat||{})),
     timestamp:Date.now()
   };
   try{
@@ -2597,19 +2722,14 @@ function calcLeagueWideSkinsCTP(db,yr,wk,side){
   const skinCnt=Object.keys(leagueSkins).length;
   const skinPay=skinCnt>0?(180/skinCnt):0;
 
-  // CTP: highest tee time that recorded a real winner per par 3
+  // CTP: the "inside of" chain (or the commissioner's call on a disputed hole)
   const par3s=holes.filter(h=>h.p===3);
   const ctpPay=36;
   const leagueCTP={};
+  const ctpOv=getCtpOverrides(yr,wk,side);
   par3s.forEach(h=>{
-    let bestTee=0,bestName='';
-    weekRounds.forEach(wd=>{
-      const winner=wd.ctpWinners[h.n];
-      if(winner&&winner!=='__HIGHER_TEE__'&&wd.teeTime>bestTee){
-        bestTee=wd.teeTime;bestName=winner;
-      }
-    });
-    if(bestName)leagueCTP[h.n]=bestName;
+    const r=resolveCtp(weekRounds,h.n,ctpOv);
+    if(r.winner)leagueCTP[h.n]=r.winner;
   });
 
   // Apply skins+CTP results to each round
@@ -2765,7 +2885,17 @@ function buildStats(yr_data){
 
   yr_data.weeks.forEach(wd=>{
     if(!wd.players||!wd.scores)return;
-    if(wd.isScramble)return; // scramble scores are team scores, not individual
+    if(wd.isScramble){
+      // Scramble scores are team scores, so they don't count toward averages — but the winnings do
+      wd.players.forEach(pl=>{
+        if(!pl||!pl.name)return;
+        const n=nameMap[pl.name]||pl.name;
+        if(!stats[n])stats[n]={money:0,scores:[],wins:0,skins:0,ctps:0,pressWins:0,isSub:!regularSet.has(n)};
+        const m=b=>(b&&b[pl.name])||0;
+        stats[n].money+=m(wd.money)+m(wd.scramblePotMoney)+m(wd.skinsMoney)+m(wd.ctpMoney);
+      });
+      return;
+    }
     wd.players.forEach((pl,i)=>{
       if(!pl||!pl.name)return; // skip undefined/null players
       const n=nameMap[pl.name]||pl.name; // apply promotion map
@@ -3178,7 +3308,7 @@ function showTab(t){
   if(t==='skins')renderSkins();
   if(t==='thisweek')renderThisWeek();
   if(t==='handicap')renderHandicap();
-  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();initSettleWeekSel();initClearLiveWeekSel();initCaptainEntry();initRosterContacts();initCourseSettings();}
+  if(t==='admin'){renderPlayers();syncAdminUI();renderAdminMoneyLb();renderAdminCtpLb();renderAdminSkinsLb();initPastWeekEntry();initEditRound();initSettleWeekSel();initClearLiveWeekSel();initCaptainEntry();initRosterContacts();initCourseSettings();renderCtpDisputes();}
   window.scrollTo(0,0);
 }
 function hideBnav(){document.getElementById('bnav').style.display='none';}
@@ -3506,6 +3636,7 @@ async function refreshTeeTimeLiveData(){
     const r=await fetch(db.sheetUrl+'?action=getLive&year='+encodeURIComponent(db.activeYear)+'&week='+wk);
     const d=await r.json();
     _teeTimeLiveCache=(d&&d.ok&&d.live)?d.live:[];
+    _liveFetchedAt=Date.now();
   }catch(e){
     _teeTimeLiveCache=[]; // fail quiet — grid still shows submitted rounds
   }
@@ -3623,6 +3754,7 @@ function syncAdminUI(){
   const swEl=document.getElementById('scramble-week-num');if(swEl)swEl.value=yr.scrambleWeek||14;
   const spEl=document.getElementById('scramble-pot');if(spEl)spEl.value=yr.scramblePot||120;
   const sspEl=document.getElementById('scramble-skins-pot');if(sspEl)sspEl.value=yr.scrambleSkinsPot||130;
+  const sctEl=document.getElementById('scramble-ctp-amt');if(sctEl)sctEl.value=yr.scrambleCtpAmount||0;
   const sideOvEl=document.getElementById('adm-side-override');
   if(sideOvEl)sideOvEl.textContent=yr.sideOverride?('Overridden: '+(yr.sideOverride==='front'?'Front 9':'Back 9')):'No override set';
   const sideStatusEl=document.getElementById('side-override-status');
@@ -3774,6 +3906,7 @@ async function saveScrambleSettings(){
   yr.scrambleWeek=parseInt(wkEl?.value)||14;
   yr.scramblePot=parseFloat(potEl?.value)||120;
   yr.scrambleSkinsPot=parseFloat(skinsPotEl?.value)||130;
+  yr.scrambleCtpAmount=Math.max(0,parseFloat(document.getElementById('scramble-ctp-amt')?.value)||0);
   saveDB(db);
   if(db.sheetUrl){
     try{
@@ -3782,10 +3915,11 @@ async function saveScrambleSettings(){
         data:{
           ['scrambleWeek_'+db.activeYear]:yr.scrambleWeek,
           ['scramblePot_'+db.activeYear]:yr.scramblePot,
-          ['scrambleSkinsPot_'+db.activeYear]:yr.scrambleSkinsPot
+          ['scrambleSkinsPot_'+db.activeYear]:yr.scrambleSkinsPot,
+          ['scrambleCtpAmount_'+db.activeYear]:yr.scrambleCtpAmount
         }
       })});
-      if(statusEl)statusEl.textContent='✓ Scramble settings saved — Week '+yr.scrambleWeek+' · $'+yr.scramblePot+' team pot · $'+yr.scrambleSkinsPot+' skins/CTP';
+      if(statusEl)statusEl.textContent='✓ Scramble settings saved — Week '+yr.scrambleWeek+' · $'+yr.scramblePot+' team pot · $'+yr.scrambleSkinsPot+' skins · '+(yr.scrambleCtpAmount?'$'+yr.scrambleCtpAmount+' CTP':'no CTP');
     }catch(e){
       if(statusEl)statusEl.textContent='✓ Saved locally';
     }
@@ -3874,6 +4008,58 @@ function adminSettleSkinsCTP(){
   settleSkinsManual();
 }
 
+// Scramble weeks settle as team skins + team pot; every other week league-wide individual skins.
+function settleWeek(db,yr,wk,side){
+  const rounds=yr.weeks.filter(w=>w.week===wk&&w.side===side);
+  if(rounds.length&&rounds.every(w=>w.isScramble))calcScrambleSkins(db,yr,wk,side);
+  else calcLeagueWideSkinsCTP(db,yr,wk,side);
+}
+
+// ── CTP DISPUTES (commissioner) ───────────────────────────────
+function renderCtpDisputes(){
+  const el=document.getElementById('ctp-disputes');if(!el)return;
+  const yr=getYear(getDB());
+  const keys=[...new Set(yr.weeks.map(w=>w.week+'_'+(w.side||'front')))];
+  const items=[];
+  keys.forEach(k=>{
+    const [wkStr,side]=k.split('_');const wk=Number(wkStr);
+    const rounds=yr.weeks.filter(w=>w.week===wk&&(w.side||'front')===side);
+    if(rounds[0]&&rounds[0].isScramble&&!scrambleCtpEnabled(yr))return;
+    const ov=getCtpOverrides(yr,wk,side);
+    HOLES[side].filter(h=>h.p===3).forEach(h=>{
+      const raw=resolveCtp(rounds,h.n,null);
+      if(!raw.conflict&&!ov[h.n])return;
+      const contenders=raw.conflict?raw.contenders:[...new Set(ctpClaimsFor(rounds,h.n).map(c=>c.winner))];
+      items.push({wk,side,hole:h.n,contenders,chosen:ov[h.n]||''});
+    });
+  });
+  if(!items.length){el.innerHTML='<div style="font-size:13px;color:var(--text2)">No disputed CTPs ✓</div>';return;}
+  el.innerHTML=items.sort((a,b)=>b.wk-a.wk||a.hole-b.hole).map(it=>
+    '<div style="padding:8px 0;border-bottom:1px solid var(--border)">'+
+      '<div style="font-size:13px;font-weight:600;margin-bottom:6px">Week '+it.wk+' · Hole '+it.hole+(it.chosen?' — <span style="color:var(--green-d)">'+escAttr(it.chosen)+'</span>':' — <span style="color:var(--red)">needs a decision</span>')+'</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+        it.contenders.map(n=>'<button class="badge '+(n===it.chosen?'badge-green':'badge-navy')+'" style="cursor:pointer;border:none;padding:6px 10px" onclick="resolveCtpDispute('+it.wk+',\''+it.side+'\','+it.hole+',this.dataset.name)" data-name="'+escAttr(n)+'">'+escAttr(n)+'</button>').join('')+
+        (it.chosen?'<button class="badge" style="cursor:pointer;border:1px solid var(--border);background:none;padding:6px 10px" onclick="resolveCtpDispute('+it.wk+',\''+it.side+'\','+it.hole+',\'\')">Clear</button>':'')+
+      '</div>'+
+    '</div>').join('');
+}
+
+async function resolveCtpDispute(wk,side,hole,name){
+  const db=getDB();const yr=getYear(db);
+  yr.ctpOverrides=yr.ctpOverrides||{};
+  const key=wk+'_'+side;
+  yr.ctpOverrides[key]=yr.ctpOverrides[key]||{};
+  if(name)yr.ctpOverrides[key][hole]=name;else delete yr.ctpOverrides[key][hole];
+  saveDB(db);
+  // Re-settle that week if it was already settled so the payout follows the decision
+  if(yr.weeks.some(w=>w.week===wk&&w.side===side&&w.skinsSettled))settleWeek(db,yr,wk,side);
+  renderCtpDisputes();renderCTP();renderAdminCtpLb();renderAdminMoneyLb();
+  showToast(name?'Hole '+hole+' CTP → '+name:'CTP decision cleared');
+  if(db.sheetUrl){
+    try{await fetch(db.sheetUrl,{method:'POST',body:JSON.stringify({action:'saveConfig',data:{['ctpOverrides_'+db.activeYear]:JSON.stringify(yr.ctpOverrides)}})});}catch(e){}
+  }
+}
+
 function changePassword(){
   saveNewPassword();
 }
@@ -3921,7 +4107,7 @@ function settleSkinsManual(){
   const thisWkRounds=yr.weeks.filter(w=>w.week===wk);
   const side=thisWkRounds.length>0?thisWkRounds[0].side:(yr.seasonStartDate?calcCurrentSide(yr):yr.currentSide);
   if(!thisWkRounds.length){showToast('No rounds submitted for Week '+wk+' yet');return;}
-  calcLeagueWideSkinsCTP(db,yr,wk,side);
+  settleWeek(db,yr,wk,side);
   saveDB(db);
   renderHome();
   renderSkins();
@@ -4026,7 +4212,7 @@ function settleSpecificWeek(){
   const rounds=yr.weeks.filter(w=>w.week===wk);
   if(!rounds.length){showToast('No rounds for Week '+wk);return;}
   const side=rounds[0].side;
-  calcLeagueWideSkinsCTP(db,yr,wk,side);
+  settleWeek(db,yr,wk,side);
   saveDB(db);
   renderSkins();renderCTP();renderAdminSkinsLb();renderAdminCtpLb();renderAdminMoneyLb();
   initSettleWeekSel(); // refresh dropdown to show settled status
@@ -4128,7 +4314,7 @@ function launchPastEntry(wk,side,teeTime,p1,p2,p3,p4,s1,s2,s3,s4){
   ST.players=players;
   ST.teeTime=teeTime;
   ST.p5=null;ST.p5scores=[]; // past entry has no skins-only player; clear any left from an earlier round
-  ST.holeIdx=0;ST.awins=0;ST.bwins=0;ST.ctpWinners={};ST.presses=[];
+  ST.holeIdx=0;ST.awins=0;ST.bwins=0;ST.ctpWinners={};ST.ctpBeat={};ST.presses=[];
   const holes=HOLES[side];
   ST.scores=holes.map(h=>{const sc={};for(let i=0;i<4;i++)sc['p'+i]=h.p;return sc;});
   document.getElementById('tab-admin').classList.remove('active');
@@ -4173,19 +4359,16 @@ function renderCTP(){
     const side=thisWeekRounds[0]?thisWeekRounds[0].side||'front':'front';
     const holes=HOLES[side];
     const par3s=holes.filter(h=>h.p===3);
-    const ctpPay=36;
+    const isScr=!!(thisWeekRounds[0]&&thisWeekRounds[0].isScramble);
+    const ctpPay=isScr?(parseFloat(yr.scrambleCtpAmount)||0):36;
+    const sideRounds=thisWeekRounds.filter(w=>(w.side||'front')===side);
+    const ov=getCtpOverrides(yr,wk,side);
     const weekCTP={};
-    par3s.forEach(function(h){
-      let bestTee=0,bestName='';
-      thisWeekRounds.forEach(function(wd){
-        const winner=wd.ctpWinners&&wd.ctpWinners[h.n];
-        if(winner&&winner!=='__HIGHER_TEE__'&&wd.teeTime>bestTee){bestTee=wd.teeTime;bestName=winner;}
-      });
-      weekCTP[h.n]={winner:bestName,teeTime:bestTee};
-    });
-    const rows=par3s.map(function(h){
+    par3s.forEach(function(h){weekCTP[h.n]=resolveCtp(sideRounds,h.n,ov);});
+    const rows=(isScr&&!ctpPay)?'<div style="font-size:13px;color:var(--text2);padding:6px 0">No CTP contest on scramble week</div>':par3s.map(function(h){
       const w=weekCTP[h.n]||{};
-      return '<div class="payout-row"><div><div style="font-weight:600">Hole '+h.n+' — Par 3</div><div style="font-size:11px;color:var(--text2)">'+(w.winner?'Tee Time '+w.teeTime:'Pending')+'</div></div><div style="text-align:right"><div style="font-weight:700;color:var(--gold-d)">'+(w.winner||'—')+'</div>'+(isCurrent&&w.winner?'<div style="font-size:11px;color:var(--green-d)">+$'+ctpPay.toFixed(2)+'</div>':'')+'</div></div>';
+      const sub=w.conflict?'⚠️ Disputed: '+w.contenders.join(' or ')+' — commissioner will decide':w.overridden?'Commissioner\'s call':w.winner?'Closest marker':'Pending';
+      return '<div class="payout-row"><div><div style="font-weight:600">Hole '+h.n+' — Par 3</div><div style="font-size:11px;color:'+(w.conflict?'var(--red)':'var(--text2)')+'">'+sub+'</div></div><div style="text-align:right"><div style="font-weight:700;color:var(--gold-d)">'+(w.winner||'—')+'</div>'+(isCurrent&&w.winner?'<div style="font-size:11px;color:var(--green-d)">+$'+ctpPay.toFixed(2)+'</div>':'')+'</div></div>';
     }).join('');
     const pending=isCurrent&&par3s.some(function(h){return !weekCTP[h.n]||!weekCTP[h.n].winner;});
     return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong>Week '+wk+' <span class="badge badge-navy" style="font-size:10px">'+(side==='front'?'Front':'Back')+' 9</span>'+(isCurrent?'<span class="badge badge-green" style="font-size:10px;margin-left:4px">Current</span>':'')+'</strong>'+(isCurrent?'<span style="font-size:11px;color:var(--gold-d)">$'+ctpPay+'/hole</span>':'')+'</div>'+rows+(pending?'<div style="font-size:11px;color:var(--text2);padding-top:8px;border-top:1px solid var(--border)">⏳ Pending — not all groups in</div>':'')+'</div>';
